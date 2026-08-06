@@ -1,0 +1,5 @@
+<!doctype html><html lang="en" data-theme="{{ settings.theme if settings is defined else 'light' }}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{% block title %}PantryPilot{% endblock %}</title><link rel="stylesheet" href="{{ url_for('static',filename='css/app.css') }}"></head><body>
+<aside class="sidebar"><a class="brand" href="/"><span>Pantry</span><b>Pilot</b></a><nav>{% for endpoint,label,icon in [('dashboard.index','Dashboard','▦'),('inventory.page','Inventory','▤'),('grocery_lists.page','Grocery Lists','✓'),('stores.page','Stores','▥'),('settings.page','Settings','⚙')] %}<a href="{{ url_for(endpoint) }}" class="{% if request.endpoint==endpoint %}active{% endif %}"><i>{{ icon }}</i>{{ label }}</a>{% endfor %}</nav></aside>
+<header class="mobile"><a class="brand" href="/">Pantry<b>Pilot</b></a><button aria-label="Open navigation" id="menu">☰</button></header>
+<main>{% block content %}{% endblock %}</main><div id="live" class="sr-only" aria-live="polite"></div><script type="module" src="{{ url_for('static',filename='js/app.js') }}"></script>{% block scripts %}{% endblock %}</body></html>
+
