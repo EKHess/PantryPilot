@@ -1,0 +1,7 @@
+{% extends 'base.html' %}{% block title %}Inventory · PantryPilot{% endblock %}
+{% block content %}
+<header class="page-header"><div><h1>Inventory</h1><p>Search, filter, sort, and update every item.</p></div><button class="button primary" data-open-modal>＋ Add item</button></header>
+<article class="card inventory-panel"><div class="filters inventory-filters"><input placeholder="Search items… e.g. milk"><button class="select-button">All stores <span>▾</span></button><button class="select-button">Date added: Any <span>▾</span></button><button class="button">Clear</button></div>
+<div class="alphabet">{% for letter in ['All'] + 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'|list %}<button class="{{ 'active' if loop.first }}">{{ letter }}</button>{% endfor %}</div>
+<div class="table-wrap"><table><thead><tr><th>Item ↕</th><th>Store ↕</th><th>Quantity ↕</th><th>Added ↕</th><th>Status</th><th>Actions</th></tr></thead><tbody>{% for item in items %}<tr><td><strong>{{ item.name }}</strong></td><td>{{ item.store }}</td><td><span class="qty">−　{{ item.quantity }}　＋</span></td><td>{{ item.added }}</td><td><span class="badge {{ item.status[1] }}">{{ item.status[0] }}</span></td><td>✎　⋮</td></tr>{% endfor %}</tbody></table></div><p class="table-footer">Showing 1–5 of 86 items · 25 per page</p></article>
+{% endblock %}
