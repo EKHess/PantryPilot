@@ -1,6 +1,7 @@
 """PantryPilot Flask application entrypoint."""
 
 from flask import Flask, render_template
+import argparse
 
 import database
 from config import Config
@@ -42,4 +43,8 @@ app = create_app()
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="A local Flask app to manage grocery inventory")
+    parser.add_argument("--port", type=int, default=8888, help="Port to run on local host (default: 8888)")
+    args = parser.parse_args()
+
     app.run(debug=True)
