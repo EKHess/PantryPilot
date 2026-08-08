@@ -1,2 +1,5 @@
-mockups/
-dev_plan.md
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+instance/
