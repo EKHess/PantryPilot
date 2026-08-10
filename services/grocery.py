@@ -358,14 +358,27 @@ def dashboard_data(search: str = "", store_id: int | None = None) -> dict:
     }
 
 
-def grocery_lists() -> list[dict]:
+def grocery_lists(include_low: bool = False) -> list[dict]:
+    """Return automatically generated restock lists grouped by store.
+
+    Out-of-stock items are always included. Low-stock items are opt-in so the
+    same function can drive both the page and its PDF downloads.
+    """
     lists = []
     for store in stores():
         items = [
-            (item["name"], item["quantity"])
+            {"name": item["name"], "quantity": item["quantity"]}
             for item in inventory_items(store_id=store["id"])
-            if item["status"][1] in {"out", "low"}
+            if item["status"][1] == "out"
+            or (include_low and item["status"][1] == "low")
         ]
         if items:
-            lists.append({"name": store["name"], "count": len(items), "items": items})
+            lists.append(
+                {
+                    "id": store["id"],
+                    "name": store["name"],
+                    "count": len(items),
+                    "items": items,
+                }
+            )
     return lists

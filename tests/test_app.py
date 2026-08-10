@@ -278,9 +278,50 @@ def test_item_minimum_updates_inventory_statuses_and_lists(client):
     dashboard = client.get("/").data
     assert b"Low stock" in dashboard
     grocery_lists = client.get("/grocery-lists").data
+    assert b"Minimum item" not in grocery_lists
+    grocery_lists = client.get("/grocery-lists?include_low=1").data
     assert b"Minimum item" in grocery_lists
     assert b"Above item" not in grocery_lists
     assert b"Quantity \xe2\x89\xa4 2" in grocery_lists
+
+
+def test_grocery_lists_default_to_out_items_and_toggle_low_items(client):
+    default_page = client.get("/grocery-lists")
+    assert b"Milk" in default_page.data
+    assert b"Dish soap" in default_page.data
+    assert b"Bananas" not in default_page.data
+    assert b'name="include_low" value="1"  onchange' in default_page.data
+
+    with_low = client.get("/grocery-lists?include_low=1")
+    assert b"Milk" in with_low.data
+    assert b"Bananas" in with_low.data
+    assert b'name="include_low" value="1" checked' in with_low.data
+    assert b"/grocery-lists/download?include_low=1" in with_low.data
+
+
+def test_store_and_all_grocery_list_pdf_downloads(client):
+    store_pdf = client.get("/grocery-lists/stores/1/download")
+    assert store_pdf.status_code == 200
+    assert store_pdf.mimetype == "application/pdf"
+    assert "attachment;" in store_pdf.headers["Content-Disposition"]
+    assert "costco-grocery-list.pdf" in store_pdf.headers["Content-Disposition"]
+    assert store_pdf.data.startswith(b"%PDF-1.4")
+    assert b"Milk" in store_pdf.data
+    assert b"Eggs" not in store_pdf.data
+
+    all_pdf = client.get("/grocery-lists/download?include_low=1")
+    assert all_pdf.status_code == 200
+    assert all_pdf.data.startswith(b"%PDF-1.4")
+    assert b"Costco" in all_pdf.data
+    assert b"Fresh Market" in all_pdf.data
+    assert b"Walmart" in all_pdf.data
+    assert b"Bananas" in all_pdf.data
+    assert b"Brown rice" in all_pdf.data
+    assert all_pdf.data.index(b"Costco") < all_pdf.data.index(b"Fresh Market")
+
+
+def test_store_pdf_for_missing_store_is_not_found(client):
+    assert client.get("/grocery-lists/stores/999/download").status_code == 404
 
 
 @pytest.mark.parametrize(
