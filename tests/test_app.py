@@ -310,7 +310,9 @@ def test_store_and_all_grocery_list_pdf_downloads(client):
     assert store_pdf.data.startswith(b"%PDF-1.4")
     assert b"Milk" in store_pdf.data
     assert b"Eggs" not in store_pdf.data
-    assert b"1 0 0 1 54 681 Tm ([ ]  Milk    Qty 0) Tj" in store_pdf.data
+    assert b"54 679 10 10 re S" in store_pdf.data
+    assert b"1 0 0 1 70 681 Tm (Milk    Qty 0) Tj" in store_pdf.data
+    assert b"[ ]" not in store_pdf.data
 
     all_pdf = client.get("/grocery-lists/download?include_low=1")
     assert all_pdf.status_code == 200
