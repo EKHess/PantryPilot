@@ -64,6 +64,32 @@ def update_item_minimum(value) -> int:
     return minimum
 
 
+def pdf_font_size() -> int:
+    row = database.get_connection().execute(
+        "SELECT value FROM app_metadata WHERE key = 'pdf_font_size'"
+    ).fetchone()
+    return int(row["value"]) if row else int(current_app.config["PDF_FONT_SIZE"])
+
+
+def update_pdf_font_size(value) -> int:
+    try:
+        font_size = int(value)
+    except (TypeError, ValueError) as error:
+        raise SettingsValidationError(
+            "PDF font size must be a whole number."
+        ) from error
+    if not 8 <= font_size <= 32:
+        raise SettingsValidationError("PDF font size must be between 8 and 32.")
+    connection = database.get_connection()
+    connection.execute(
+        """INSERT INTO app_metadata (key, value) VALUES ('pdf_font_size', ?)
+           ON CONFLICT(key) DO UPDATE SET value = excluded.value""",
+        (str(font_size),),
+    )
+    connection.commit()
+    return font_size
+
+
 def seed_stores() -> None:
     """Populate stores once, without restoring stores a user later deletes."""
     connection = database.get_connection()

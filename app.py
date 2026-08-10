@@ -138,7 +138,7 @@ def create_app(test_config=None) -> Flask:
 
     def pdf_download(lists, filename, title):
         return send_file(
-            BytesIO(grocery_list_pdf(lists, title)),
+            BytesIO(grocery_list_pdf(lists, title, grocery.pdf_font_size())),
             mimetype="application/pdf",
             as_attachment=True,
             download_name=filename,
@@ -218,16 +218,26 @@ def create_app(test_config=None) -> Flask:
     def settings():
         if request.method == "POST":
             try:
-                minimum = grocery.update_item_minimum(
-                    request.form.get("item_minimum")
-                )
+                if "pdf_font_size" in request.form:
+                    font_size = grocery.update_pdf_font_size(
+                        request.form.get("pdf_font_size")
+                    )
+                    message = f"PDF font size was updated to {font_size}."
+                else:
+                    minimum = grocery.update_item_minimum(
+                        request.form.get("item_minimum")
+                    )
+                    message = f"Item Minimum was updated to {minimum}."
             except grocery.SettingsValidationError as error:
                 flash(str(error), "error")
             else:
-                flash(f"Item Minimum was updated to {minimum}.", "success")
+                flash(message, "success")
             return redirect(url_for("settings"))
         return render_template(
-            "settings.html", active="settings", item_minimum=grocery.item_minimum()
+            "settings.html",
+            active="settings",
+            item_minimum=grocery.item_minimum(),
+            pdf_font_size=grocery.pdf_font_size(),
         )
 
     return app

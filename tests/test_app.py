@@ -310,8 +310,8 @@ def test_store_and_all_grocery_list_pdf_downloads(client):
     assert store_pdf.data.startswith(b"%PDF-1.4")
     assert b"Milk" in store_pdf.data
     assert b"Eggs" not in store_pdf.data
-    assert b"54 679 10 10 re S" in store_pdf.data
-    assert b"1 0 0 1 70 681 Tm (Milk    Qty 0) Tj" in store_pdf.data
+    assert b"54 677 10 10 re S" in store_pdf.data
+    assert b"/F1 12 Tf 1 0 0 1 70 679 Tm (Milk    Qty 0) Tj" in store_pdf.data
     assert b"[ ]" not in store_pdf.data
 
     all_pdf = client.get("/grocery-lists/download?include_low=1")
@@ -330,6 +330,34 @@ def test_store_and_all_grocery_list_pdf_downloads(client):
 
 def test_store_pdf_for_missing_store_is_not_found(client):
     assert client.get("/grocery-lists/stores/999/download").status_code == 404
+
+
+def test_pdf_font_size_setting_updates_all_exported_pdfs(client):
+    settings = client.get("/settings")
+    assert b"Font size for exported PDFs" in settings.data
+    assert b'name="pdf_font_size"' in settings.data
+    assert b'value="12"' in settings.data
+
+    updated = client.post(
+        "/settings", data={"pdf_font_size": "20"}, follow_redirects=True
+    )
+    assert b"PDF font size was updated to 20." in updated.data
+    assert b'name="pdf_font_size"' in updated.data
+    assert b'value="20"' in updated.data
+
+    store_pdf = client.get("/grocery-lists/stores/1/download")
+    all_pdf = client.get("/grocery-lists/download")
+    assert b"/F1 20 Tf" in store_pdf.data
+    assert b"/F1 20 Tf" in all_pdf.data
+
+
+@pytest.mark.parametrize("value", ["", "7", "33", "12.5"])
+def test_pdf_font_size_rejects_invalid_values(client, value):
+    response = client.post(
+        "/settings", data={"pdf_font_size": value}, follow_redirects=True
+    )
+    assert b"PDF font size" in response.data
+    assert b'value="12"' in response.data
 
 
 @pytest.mark.parametrize(
