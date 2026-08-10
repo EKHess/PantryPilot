@@ -132,7 +132,6 @@ def create_app(test_config=None) -> Flask:
             active="lists",
             lists=lists,
             list_item_count=sum(grocery_list["count"] for grocery_list in lists),
-            item_minimum=grocery.item_minimum(),
             include_low=include_low,
         )
 

@@ -282,11 +282,11 @@ def test_item_minimum_updates_inventory_statuses_and_lists(client):
     grocery_lists = client.get("/grocery-lists?include_low=1").data
     assert b"Minimum item" in grocery_lists
     assert b"Above item" not in grocery_lists
-    assert b"Quantity \xe2\x89\xa4 2" in grocery_lists
 
 
 def test_grocery_lists_default_to_out_items_and_toggle_low_items(client):
     default_page = client.get("/grocery-lists")
+    assert b"List options" not in default_page.data
     assert b"Milk" in default_page.data
     assert b"Dish soap" in default_page.data
     assert b"Bananas" not in default_page.data
