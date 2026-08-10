@@ -2,23 +2,9 @@
 
 import re
 import sqlite3
+from datetime import datetime
 
 import database
-
-ITEMS = [
-    {"name": "Bananas", "store_id": 2, "quantity": 1, "added": "Aug 1, 2026"},
-    {"name": "Brown rice", "store_id": 3, "quantity": 1, "added": "Jul 28, 2026"},
-    {"name": "Dish soap", "store_id": 4, "quantity": 0, "added": "Jul 19, 2026"},
-    {"name": "Eggs", "store_id": 1, "quantity": 3, "added": "Jul 15, 2026"},
-    {"name": "Milk", "store_id": 1, "quantity": 0, "added": "Jul 12, 2026"},
-]
-
-STORE_NEEDS = [
-    {"store_id": 1, "count": 8, "percent": 37},
-    {"store_id": 2, "count": 6, "percent": 28},
-    {"store_id": 3, "count": 5, "percent": 23},
-    {"store_id": 4, "count": 3, "percent": 12},
-]
 
 DEFAULT_STORES = [
     ("Costco", "#2563eb"),
@@ -27,12 +13,25 @@ DEFAULT_STORES = [
     ("Walmart", "#7c3aed"),
 ]
 
+DEFAULT_ITEMS = [
+    ("Bananas", 2, 1, "2026-08-01 09:00:00"),
+    ("Brown rice", 3, 1, "2026-07-28 09:00:00"),
+    ("Dish soap", 4, 0, "2026-07-19 09:00:00"),
+    ("Eggs", 1, 3, "2026-07-15 09:00:00"),
+    ("Milk", 1, 0, "2026-07-12 09:00:00"),
+]
+
 STORE_NAME_MAX_LENGTH = 80
+ITEM_NAME_MAX_LENGTH = 120
 COLOR_PATTERN = re.compile(r"^#[0-9a-fA-F]{6}$")
 
 
 class StoreValidationError(ValueError):
     """Raised when a store cannot be saved."""
+
+
+class ItemValidationError(ValueError):
+    """Raised when an inventory item cannot be saved."""
 
 
 def seed_stores() -> None:
@@ -48,6 +47,26 @@ def seed_stores() -> None:
     )
     connection.execute(
         "INSERT INTO app_metadata (key, value) VALUES ('default_stores_seeded', '1')"
+    )
+    connection.commit()
+
+
+def seed_items() -> None:
+    """Populate the prototype inventory once so it becomes user-editable."""
+    connection = database.get_connection()
+    seeded = connection.execute(
+        "SELECT 1 FROM app_metadata WHERE key = 'default_items_seeded'"
+    ).fetchone()
+    if seeded:
+        return
+    available_store_ids = {store["id"] for store in stores()}
+    default_items = [item for item in DEFAULT_ITEMS if item[1] in available_store_ids]
+    connection.executemany(
+        "INSERT INTO grocery_items (name, store_id, quantity, created_at) VALUES (?, ?, ?, ?)",
+        default_items,
+    )
+    connection.execute(
+        "INSERT INTO app_metadata (key, value) VALUES ('default_items_seeded', '1')"
     )
     connection.commit()
 
@@ -138,50 +157,171 @@ def delete_store(store_id: int) -> dict | None:
 def status_for(quantity: int) -> tuple[str, str]:
     if quantity == 0:
         return "Out", "out"
-    if quantity <= 1:
-        return "Low", "low"
-    return "In stock", "stock"
+    return "In Stock", "stock"
 
 
-def inventory_items() -> list[dict]:
-    store_names = {store["id"]: store["name"] for store in stores()}
-    return [
-        {
-            **item,
-            "store": store_names.get(item["store_id"], "Unassigned"),
-            "status": status_for(item["quantity"]),
-        }
-        for item in ITEMS
-    ]
+def _item_from_row(row) -> dict:
+    item = dict(row)
+    item["store"] = item["store"] or "Unassigned"
+    item["added"] = datetime.fromisoformat(item.pop("created_at")).strftime("%b %d, %Y")
+    item["status"] = status_for(item["quantity"])
+    return item
 
 
-def dashboard_data() -> dict:
+def inventory_items(search: str = "", store_id: int | None = None) -> list[dict]:
+    clauses = []
+    parameters: list = []
+    if search:
+        clauses.append("i.name LIKE ? COLLATE NOCASE")
+        parameters.append(f"%{search.strip()}%")
+    if store_id is not None:
+        clauses.append("i.store_id = ?")
+        parameters.append(store_id)
+    where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+    rows = database.get_connection().execute(
+        f"""SELECT i.id, i.name, i.store_id, i.quantity, i.created_at,
+                   s.name AS store
+            FROM grocery_items AS i
+            LEFT JOIN stores AS s ON s.id = i.store_id
+            {where}
+            ORDER BY i.name COLLATE NOCASE""",
+        parameters,
+    ).fetchall()
+    return [_item_from_row(row) for row in rows]
+
+
+def item_names() -> list[str]:
+    rows = database.get_connection().execute(
+        "SELECT DISTINCT name FROM grocery_items ORDER BY name COLLATE NOCASE"
+    ).fetchall()
+    return [row["name"] for row in rows]
+
+
+def get_item(item_id: int) -> dict | None:
+    row = database.get_connection().execute(
+        """SELECT i.id, i.name, i.store_id, i.quantity, i.created_at,
+                  s.name AS store
+           FROM grocery_items AS i
+           LEFT JOIN stores AS s ON s.id = i.store_id
+           WHERE i.id = ?""",
+        (item_id,),
+    ).fetchone()
+    return _item_from_row(row) if row else None
+
+
+def _validated_item_values(name: str, store_id, quantity) -> tuple[str, int, int]:
+    clean_name = " ".join((name or "").split())
+    if not clean_name:
+        raise ItemValidationError("Enter an item name.")
+    if len(clean_name) > ITEM_NAME_MAX_LENGTH:
+        raise ItemValidationError(
+            f"Item names must be {ITEM_NAME_MAX_LENGTH} characters or fewer."
+        )
+    try:
+        clean_store_id = int(store_id)
+    except (TypeError, ValueError) as error:
+        raise ItemValidationError("Choose a valid store.") from error
+    if not get_store(clean_store_id):
+        raise ItemValidationError("Choose a valid store.")
+    try:
+        clean_quantity = int(quantity)
+    except (TypeError, ValueError) as error:
+        raise ItemValidationError("Quantity must be a whole number.") from error
+    if clean_quantity < 0:
+        raise ItemValidationError("Quantity cannot be negative.")
+    return clean_name, clean_store_id, clean_quantity
+
+
+def create_item(name: str, store_id, quantity) -> dict:
+    clean_name, clean_store_id, clean_quantity = _validated_item_values(
+        name, store_id, quantity
+    )
+    connection = database.get_connection()
+    cursor = connection.execute(
+        "INSERT INTO grocery_items (name, store_id, quantity) VALUES (?, ?, ?)",
+        (clean_name, clean_store_id, clean_quantity),
+    )
+    connection.commit()
+    return get_item(cursor.lastrowid)
+
+
+def update_item(item_id: int, name: str, store_id, quantity) -> dict | None:
+    if not get_item(item_id):
+        return None
+    clean_name, clean_store_id, clean_quantity = _validated_item_values(
+        name, store_id, quantity
+    )
+    connection = database.get_connection()
+    connection.execute(
+        "UPDATE grocery_items SET name = ?, store_id = ?, quantity = ? WHERE id = ?",
+        (clean_name, clean_store_id, clean_quantity, item_id),
+    )
+    connection.commit()
+    return get_item(item_id)
+
+
+def change_item_quantity(item_id: int, change: int) -> dict | None:
+    connection = database.get_connection()
+    item = get_item(item_id)
+    if not item:
+        return None
+    quantity = max(0, item["quantity"] + change)
+    connection.execute(
+        "UPDATE grocery_items SET quantity = ? WHERE id = ?", (quantity, item_id)
+    )
+    connection.commit()
+    return get_item(item_id)
+
+
+def delete_item(item_id: int) -> dict | None:
+    connection = database.get_connection()
+    item = get_item(item_id)
+    if not item:
+        return None
+    connection.execute("DELETE FROM grocery_items WHERE id = ?", (item_id,))
+    connection.commit()
+    return item
+
+
+def dashboard_data(search: str = "", store_id: int | None = None) -> dict:
     current_stores = stores()
-    store_names = {store["id"]: store["name"] for store in current_stores}
+    items = inventory_items(search, store_id)
+    all_items = inventory_items()
+    out_count = sum(item["quantity"] == 0 for item in all_items)
+    counts = {store["id"]: 0 for store in current_stores}
+    for item in all_items:
+        if item["quantity"] == 0 and item["store_id"] in counts:
+            counts[item["store_id"]] += 1
+    total_out = sum(counts.values())
     return {
         "stats": [
-            ("Inventory items", 86),
-            ("Low stock", 14),
-            ("Out of stock", 6),
+            ("Inventory items", len(all_items)),
+            ("In stock", len(all_items) - out_count),
+            ("Out of stock", out_count),
             ("Stores", len(current_stores)),
         ],
-        "items": inventory_items()[:4],
+        "items": items,
+        "item_names": item_names(),
         "stores": [
-            {**store, "name": store_names[store["store_id"]]}
-            for store in STORE_NEEDS
-            if store["store_id"] in store_names
+            {
+                **store,
+                "count": counts[store["id"]],
+                "percent": round(counts[store["id"]] / total_out * 100) if total_out else 0,
+            }
+            for store in current_stores
+            if counts[store["id"]]
         ],
     }
 
 
 def grocery_lists() -> list[dict]:
-    store_names = {store["id"]: store["name"] for store in stores()}
-    lists = [
-        {"store_id": 1, "count": 8, "items": [("Milk", 0), ("Eggs", 1), ("Greek yogurt", 1)]},
-        {"store_id": 2, "count": 6, "items": [("Bananas", 1), ("Spinach", 0), ("Tomatoes", 1)]},
-    ]
-    return [
-        {**grocery_list, "name": store_names[grocery_list["store_id"]]}
-        for grocery_list in lists
-        if grocery_list["store_id"] in store_names
-    ]
+    lists = []
+    for store in stores():
+        items = [
+            (item["name"], item["quantity"])
+            for item in inventory_items(store_id=store["id"])
+            if item["quantity"] == 0
+        ]
+        if items:
+            lists.append({"name": store["name"], "count": len(items), "items": items})
+    return lists

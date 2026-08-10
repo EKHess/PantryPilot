@@ -1,0 +1,18 @@
+{% for item in items %}
+<tr>
+  <td><strong>{{ item.name }}</strong></td>
+  <td>{{ item.store }}</td>
+  <td>
+    <div class="quantity-control" aria-label="Quantity for {{ item.name }}">
+      <form method="post" action="{{ url_for('change_item_quantity', item_id=item.id) }}"><input type="hidden" name="return_to" value="{{ return_to }}"><input type="hidden" name="change" value="-1"><button type="submit" aria-label="Decrease {{ item.name }} quantity" {{ 'disabled' if item.quantity == 0 }}>−</button></form>
+      <strong>{{ item.quantity }}</strong>
+      <form method="post" action="{{ url_for('change_item_quantity', item_id=item.id) }}"><input type="hidden" name="return_to" value="{{ return_to }}"><input type="hidden" name="change" value="1"><button type="submit" aria-label="Increase {{ item.name }} quantity">＋</button></form>
+    </div>
+  </td>
+  {% if show_added %}<td>{{ item.added }}</td>{% endif %}
+  <td><span class="badge {{ item.status[1] }}">{{ item.status[0] }}</span></td>
+  <td><div class="row-actions"><button class="icon-button" type="button" aria-label="Edit {{ item.name }}" data-edit-item data-name="{{ item.name }}" data-store-id="{{ item.store_id }}" data-quantity="{{ item.quantity }}" data-action="{{ url_for('edit_item', item_id=item.id) }}" data-return-to="{{ return_to }}">✎</button><button class="icon-button danger" type="button" aria-label="Delete {{ item.name }}" data-delete-item data-name="{{ item.name }}" data-action="{{ url_for('delete_item', item_id=item.id) }}" data-return-to="{{ return_to }}">⌫</button></div></td>
+</tr>
+{% else %}
+<tr><td class="empty-table" colspan="{{ 6 if show_added else 5 }}">No inventory items match your search and store filter.</td></tr>
+{% endfor %}

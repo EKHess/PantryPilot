@@ -44,6 +44,26 @@ document.querySelectorAll('[data-delete-store]').forEach((button) => button.addE
   openModal(modal);
 }));
 
+document.querySelectorAll('[data-edit-item]').forEach((button) => button.addEventListener('click', () => {
+  const modal = document.querySelector('#edit-item-modal');
+  const form = modal.querySelector('form');
+  form.action = button.dataset.action;
+  form.querySelector('[name="name"]').value = button.dataset.name;
+  form.querySelector('[name="store_id"]').value = button.dataset.storeId;
+  form.querySelector('[name="quantity"]').value = button.dataset.quantity;
+  form.querySelector('[name="return_to"]').value = button.dataset.returnTo;
+  openModal(modal);
+}));
+
+document.querySelectorAll('[data-delete-item]').forEach((button) => button.addEventListener('click', () => {
+  const modal = document.querySelector('#delete-item-modal');
+  const form = modal.querySelector('form');
+  form.action = button.dataset.action;
+  form.querySelector('[name="return_to"]').value = button.dataset.returnTo;
+  modal.querySelector('[data-delete-item-name]').textContent = button.dataset.name;
+  openModal(modal);
+}));
+
 document.querySelectorAll('.modal').forEach((modal) => {
   modal.querySelectorAll('.modal-close, [data-close-modal]').forEach((button) => {
     button.addEventListener('click', () => closeModal(modal));
