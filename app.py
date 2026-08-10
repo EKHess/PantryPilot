@@ -105,7 +105,14 @@ def create_app(test_config=None) -> Flask:
 
     @app.get("/grocery-lists")
     def grocery_lists():
-        return render_template("grocery_lists.html", active="lists", lists=grocery.grocery_lists())
+        lists = grocery.grocery_lists()
+        return render_template(
+            "grocery_lists.html",
+            active="lists",
+            lists=lists,
+            list_item_count=sum(grocery_list["count"] for grocery_list in lists),
+            item_minimum=grocery.item_minimum(),
+        )
 
     @app.route("/stores", methods=["GET", "POST"])
     def stores():
@@ -143,9 +150,21 @@ def create_app(test_config=None) -> Flask:
         flash(f"{store['name']} was deleted.", "success")
         return redirect(url_for("stores"))
 
-    @app.get("/settings")
+    @app.route("/settings", methods=["GET", "POST"])
     def settings():
-        return render_template("placeholder.html", active="settings", title="Settings", subtitle="Customize PantryPilot for your household.")
+        if request.method == "POST":
+            try:
+                minimum = grocery.update_item_minimum(
+                    request.form.get("item_minimum")
+                )
+            except grocery.SettingsValidationError as error:
+                flash(str(error), "error")
+            else:
+                flash(f"Item Minimum was updated to {minimum}.", "success")
+            return redirect(url_for("settings"))
+        return render_template(
+            "settings.html", active="settings", item_minimum=grocery.item_minimum()
+        )
 
     return app
 

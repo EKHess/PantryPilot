@@ -4,6 +4,8 @@ import re
 import sqlite3
 from datetime import datetime
 
+from flask import current_app
+
 import database
 
 DEFAULT_STORES = [
@@ -32,6 +34,34 @@ class StoreValidationError(ValueError):
 
 class ItemValidationError(ValueError):
     """Raised when an inventory item cannot be saved."""
+
+
+class SettingsValidationError(ValueError):
+    """Raised when an application setting cannot be saved."""
+
+
+def item_minimum() -> int:
+    row = database.get_connection().execute(
+        "SELECT value FROM app_metadata WHERE key = 'item_minimum'"
+    ).fetchone()
+    return int(row["value"]) if row else int(current_app.config["RESTOCK_THRESHOLD"])
+
+
+def update_item_minimum(value) -> int:
+    try:
+        minimum = int(value)
+    except (TypeError, ValueError) as error:
+        raise SettingsValidationError("Item Minimum must be a whole number.") from error
+    if minimum < 0:
+        raise SettingsValidationError("Item Minimum cannot be negative.")
+    connection = database.get_connection()
+    connection.execute(
+        """INSERT INTO app_metadata (key, value) VALUES ('item_minimum', ?)
+           ON CONFLICT(key) DO UPDATE SET value = excluded.value""",
+        (str(minimum),),
+    )
+    connection.commit()
+    return minimum
 
 
 def seed_stores() -> None:
@@ -154,21 +184,24 @@ def delete_store(store_id: int) -> dict | None:
     return store
 
 
-def status_for(quantity: int) -> tuple[str, str]:
+def status_for(quantity: int, minimum: int) -> tuple[str, str]:
     if quantity == 0:
         return "Out", "out"
+    if quantity <= minimum:
+        return "Low", "low"
     return "In Stock", "stock"
 
 
-def _item_from_row(row) -> dict:
+def _item_from_row(row, minimum: int) -> dict:
     item = dict(row)
     item["store"] = item["store"] or "Unassigned"
     item["added"] = datetime.fromisoformat(item.pop("created_at")).strftime("%b %d, %Y")
-    item["status"] = status_for(item["quantity"])
+    item["status"] = status_for(item["quantity"], minimum)
     return item
 
 
 def inventory_items(search: str = "", store_id: int | None = None) -> list[dict]:
+    minimum = item_minimum()
     clauses = []
     parameters: list = []
     if search:
@@ -187,7 +220,7 @@ def inventory_items(search: str = "", store_id: int | None = None) -> list[dict]
             ORDER BY i.name COLLATE NOCASE""",
         parameters,
     ).fetchall()
-    return [_item_from_row(row) for row in rows]
+    return [_item_from_row(row, minimum) for row in rows]
 
 
 def item_names() -> list[str]:
@@ -206,7 +239,7 @@ def get_item(item_id: int) -> dict | None:
            WHERE i.id = ?""",
         (item_id,),
     ).fetchone()
-    return _item_from_row(row) if row else None
+    return _item_from_row(row, item_minimum()) if row else None
 
 
 def _validated_item_values(name: str, store_id, quantity) -> tuple[str, int, int]:
@@ -288,17 +321,19 @@ def dashboard_data(search: str = "", store_id: int | None = None) -> dict:
     items = inventory_items(search, store_id)
     all_items = inventory_items()
     out_count = sum(item["quantity"] == 0 for item in all_items)
+    low_count = sum(item["status"][1] == "low" for item in all_items)
+    in_stock_count = len(all_items) - out_count - low_count
     counts = {store["id"]: 0 for store in current_stores}
     for item in all_items:
-        if item["quantity"] == 0 and item["store_id"] in counts:
+        if item["status"][1] in {"out", "low"} and item["store_id"] in counts:
             counts[item["store_id"]] += 1
-    total_out = sum(counts.values())
+    total_restock = sum(counts.values())
     return {
         "stats": [
             ("Inventory items", len(all_items)),
-            ("In stock", len(all_items) - out_count),
+            ("In stock", in_stock_count),
+            ("Low stock", low_count),
             ("Out of stock", out_count),
-            ("Stores", len(current_stores)),
         ],
         "items": items,
         "item_names": item_names(),
@@ -306,7 +341,11 @@ def dashboard_data(search: str = "", store_id: int | None = None) -> dict:
             {
                 **store,
                 "count": counts[store["id"]],
-                "percent": round(counts[store["id"]] / total_out * 100) if total_out else 0,
+                "percent": (
+                    round(counts[store["id"]] / total_restock * 100)
+                    if total_restock
+                    else 0
+                ),
             }
             for store in current_stores
             if counts[store["id"]]
@@ -320,7 +359,7 @@ def grocery_lists() -> list[dict]:
         items = [
             (item["name"], item["quantity"])
             for item in inventory_items(store_id=store["id"])
-            if item["quantity"] == 0
+            if item["status"][1] in {"out", "low"}
         ]
         if items:
             lists.append({"name": store["name"], "count": len(items), "items": items})

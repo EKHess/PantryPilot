@@ -1,0 +1,14 @@
+{% extends 'base.html' %}{% block title %}Settings · PantryPilot{% endblock %}
+{% block content %}
+<header class="page-header"><div><h1>Settings</h1><p>Customize PantryPilot for your household.</p></div></header>
+<article class="card settings-card">
+  <div>
+    <h2>Item Minimum</h2>
+    <p>Items at or below this quantity are marked Low. Items at zero remain Out.</p>
+  </div>
+  <form method="post" action="{{ url_for('settings') }}">
+    <label for="item-minimum">Minimum quantity</label>
+    <div class="setting-control"><input id="item-minimum" name="item_minimum" type="number" min="0" step="1" value="{{ item_minimum }}" required><button class="button primary" type="submit">Save</button></div>
+  </form>
+</article>
+{% endblock %}

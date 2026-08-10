@@ -124,7 +124,7 @@ def test_modifying_missing_store_is_not_found(client, action):
     assert client.post(f"/stores/999/{action}", data=data).status_code == 404
 
 
-def test_add_item_persists_and_uses_two_state_inventory_status(client):
+def test_add_item_persists_and_uses_item_minimum_status(client):
     response = client.post(
         "/items",
         data={
@@ -148,7 +148,6 @@ def test_add_item_persists_and_uses_two_state_inventory_status(client):
         follow_redirects=True,
     )
     assert b"Out" in out_item.data
-    assert b"Low" not in out_item.data
 
 
 @pytest.mark.parametrize(
@@ -242,3 +241,71 @@ def test_modifying_missing_item_is_not_found(client, action):
 
 def test_quantity_endpoint_rejects_invalid_change(client):
     assert client.post("/items/1/quantity", data={"change": "3"}).status_code == 400
+
+
+def test_item_minimum_updates_inventory_statuses_and_lists(client):
+    response = client.post(
+        "/settings", data={"item_minimum": "2"}, follow_redirects=True
+    )
+    assert b"Item Minimum was updated to 2." in response.data
+    assert b'value="2"' in response.data
+
+    client.post(
+        "/items",
+        data={"name": "Zero item", "store_id": "1", "quantity": "0"},
+    )
+    client.post(
+        "/items",
+        data={"name": "Minimum item", "store_id": "1", "quantity": "2"},
+    )
+    client.post(
+        "/items",
+        data={"name": "Above item", "store_id": "1", "quantity": "3"},
+    )
+
+    inventory = client.get("/inventory").data
+    zero_row = inventory.split(b"<strong>Zero item</strong>", 1)[1].split(b"</tr>", 1)[0]
+    minimum_row = inventory.split(b"<strong>Minimum item</strong>", 1)[1].split(
+        b"</tr>", 1
+    )[0]
+    above_row = inventory.split(b"<strong>Above item</strong>", 1)[1].split(
+        b"</tr>", 1
+    )[0]
+    assert b'<span class="badge out">Out</span>' in zero_row
+    assert b'<span class="badge low">Low</span>' in minimum_row
+    assert b'<span class="badge stock">In Stock</span>' in above_row
+
+    dashboard = client.get("/").data
+    assert b"Low stock" in dashboard
+    grocery_lists = client.get("/grocery-lists").data
+    assert b"Minimum item" in grocery_lists
+    assert b"Above item" not in grocery_lists
+    assert b"Quantity \xe2\x89\xa4 2" in grocery_lists
+
+
+@pytest.mark.parametrize(
+    "value,message",
+    [
+        ("", "Item Minimum must be a whole number."),
+        ("1.5", "Item Minimum must be a whole number."),
+        ("-1", "Item Minimum cannot be negative."),
+    ],
+)
+def test_item_minimum_rejects_invalid_values(client, value, message):
+    response = client.post(
+        "/settings", data={"item_minimum": value}, follow_redirects=True
+    )
+    assert message.encode() in response.data
+    assert b'value="1"' in response.data
+
+
+def test_item_minimum_persists_across_restart(tmp_path):
+    database_path = tmp_path / "settings.db"
+    app = create_app({"TESTING": True, "DATABASE": str(database_path)})
+    app.test_client().post("/settings", data={"item_minimum": "4"})
+
+    restarted = create_app(
+        {"TESTING": True, "DATABASE": str(database_path)}
+    ).test_client()
+    assert b'value="4"' in restarted.get("/settings").data
+    assert b'<span class="badge low">Low</span>' in restarted.get("/inventory").data
