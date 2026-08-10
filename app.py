@@ -1,6 +1,6 @@
 """PantryPilot Flask application entrypoint."""
 
-from flask import Flask, render_template
+from flask import Flask, flash, redirect, render_template, request, url_for
 import argparse
 
 import database
@@ -16,6 +16,14 @@ def create_app(test_config=None) -> Flask:
 
     app.teardown_appcontext(database.close_connection)
 
+    with app.app_context():
+        database.initialize_schema()
+        grocery.seed_stores()
+
+    @app.context_processor
+    def store_choices():
+        return {"store_choices": grocery.stores()}
+
     @app.get("/")
     def dashboard():
         return render_template("dashboard.html", active="dashboard", **grocery.dashboard_data())
@@ -28,9 +36,19 @@ def create_app(test_config=None) -> Flask:
     def grocery_lists():
         return render_template("grocery_lists.html", active="lists", lists=grocery.grocery_lists())
 
-    @app.get("/stores")
+    @app.route("/stores", methods=["GET", "POST"])
     def stores():
-        return render_template("placeholder.html", active="stores", title="Stores", subtitle="Manage the places where you shop.")
+        if request.method == "POST":
+            try:
+                store = grocery.create_store(
+                    request.form.get("name", ""), request.form.get("color", "")
+                )
+            except grocery.StoreValidationError as error:
+                flash(str(error), "error")
+            else:
+                flash(f"{store['name']} was added.", "success")
+            return redirect(url_for("stores"))
+        return render_template("stores.html", active="stores", stores=grocery.stores())
 
     @app.get("/settings")
     def settings():

@@ -1,8 +1,4 @@
-"""SQLite connection and lifecycle helpers.
-
-The static prototype does not query SQLite yet. Keeping database ownership here
-makes the eventual persistence layer a drop-in addition rather than a rewrite.
-"""
+"""SQLite connection and lifecycle helpers."""
 
 import sqlite3
 from pathlib import Path
@@ -13,7 +9,8 @@ from flask import current_app, g
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS stores (
     id INTEGER PRIMARY KEY,
-    name TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL COLLATE NOCASE UNIQUE,
+    color TEXT NOT NULL DEFAULT '#2d805f',
     address TEXT NOT NULL DEFAULT ''
 );
 CREATE TABLE IF NOT EXISTS grocery_items (
@@ -44,6 +41,11 @@ def close_connection(_error=None) -> None:
 
 def initialize_schema() -> None:
     get_connection().executescript(SCHEMA)
+    columns = {row["name"] for row in get_connection().execute("PRAGMA table_info(stores)")}
+    if "color" not in columns:
+        get_connection().execute(
+            "ALTER TABLE stores ADD COLUMN color TEXT NOT NULL DEFAULT '#2d805f'"
+        )
     get_connection().commit()
 
 

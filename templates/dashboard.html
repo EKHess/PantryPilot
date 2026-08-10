@@ -3,7 +3,7 @@
 <header class="page-header"><div><h1>Good morning</h1><p>Here’s what needs attention in your pantry.</p></div><div class="actions"><button class="button">Download all lists</button><button class="button primary" data-open-modal>＋ Add item</button></div></header>
 <section class="stat-grid">{% for label, value in stats %}<article class="card stat"><small>{{ label }}</small><strong>{{ value }}</strong></article>{% endfor %}</section>
 <section class="dashboard-grid">
- <article class="card panel"><h2>Items needing restock</h2><div class="filters"><input aria-label="Search inventory" placeholder="Search inventory…"><button class="select-button">All stores <span>▾</span></button></div>
+ <article class="card panel"><h2>Items needing restock</h2><div class="filters"><input aria-label="Search inventory" placeholder="Search inventory…"><select aria-label="Filter by store"><option value="">All stores</option>{% for store in store_choices %}<option value="{{ store.id }}">{{ store.name }}</option>{% endfor %}</select></div>
   <div class="table-wrap"><table><thead><tr><th>Item</th><th>Store</th><th>Qty</th><th>Status</th><th></th></tr></thead><tbody>{% for item in items %}<tr><td><strong>{{ item.name }}</strong></td><td>{{ item.store }}</td><td>{{ item.quantity }}</td><td><span class="badge {{ item.status[1] }}">{{ item.status[0] }}</span></td><td>⋮</td></tr>{% endfor %}</tbody></table></div>
  </article>
  <article class="card stores-panel"><h2>Needed by store</h2>{% for store in stores %}<div class="store-progress"><div><strong>{{ store.name }}</strong><strong>{{ store.percent }}%</strong></div><small>{{ store.count }} items</small><progress max="100" value="{{ store.percent }}">{{ store.percent }}%</progress></div>{% endfor %}</article>

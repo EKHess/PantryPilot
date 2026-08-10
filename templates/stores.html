@@ -1,0 +1,26 @@
+{% extends 'base.html' %}{% block title %}Stores · PantryPilot{% endblock %}
+{% block content %}
+<header class="page-header"><div><h1>Stores</h1><p>Manage the places where you shop and organize pantry items.</p></div><button class="button primary" data-open-store-modal>＋ Add Store</button></header>
+<section class="store-grid" aria-label="Stores">
+  {% for store in stores %}
+  <article class="card store-card">
+    <span class="store-color" style="--store-color: {{ store.color }}" aria-hidden="true"></span>
+    <div><h2>{{ store.name }}</h2><p>Available for pantry items and grocery lists</p></div>
+  </article>
+  {% else %}
+  <article class="card empty-state"><span>🏪</span><h2>No stores yet</h2><p>Add your first store to start organizing pantry items.</p></article>
+  {% endfor %}
+</section>
+<div class="modal" id="store-modal" aria-hidden="true">
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="store-modal-title">
+    <button class="modal-close" type="button" aria-label="Close">×</button>
+    <h2 id="store-modal-title">Add a store</h2>
+    <p>Choose a unique name and a color to make the store easy to recognize.</p>
+    <form method="post" action="{{ url_for('stores') }}">
+      <label for="store-name">Store name<input id="store-name" name="name" required maxlength="80" autocomplete="organization" placeholder="e.g. Neighborhood Market"></label>
+      <label for="store-color">Store color<span class="color-field"><input id="store-color" name="color" type="color" value="#2d805f" required><output for="store-color">#2d805f</output></span></label>
+      <div class="modal-actions"><button class="button" type="button" data-close-modal>Cancel</button><button class="button primary" type="submit">Add Store</button></div>
+    </form>
+  </div>
+</div>
+{% endblock %}

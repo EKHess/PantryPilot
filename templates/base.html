@@ -18,12 +18,17 @@
     </nav>
   </aside>
   <button class="menu-toggle" type="button" aria-label="Toggle menu" aria-expanded="false">☰</button>
-  <main class="main">{% block content %}{% endblock %}</main>
+  <main class="main">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, message in messages %}<div class="flash {{ category }}" role="status">{{ message }}</div>{% endfor %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+  </main>
   <div class="modal" id="add-modal" aria-hidden="true">
     <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-title">
       <button class="modal-close" aria-label="Close">×</button><h2 id="modal-title">Add inventory item</h2>
       <p>This static form previews the item workflow. Saving will be enabled in a future release.</p>
-      <label>Item name<input placeholder="e.g. Oat milk"></label><label>Store<select><option>Costco</option><option>Fresh Market</option></select></label>
+      <label>Item name<input placeholder="e.g. Oat milk"></label><label>Store<select>{% for store in store_choices %}<option value="{{ store.id }}">{{ store.name }}</option>{% endfor %}</select></label>
       <button class="button primary" type="button" data-close-modal>Done</button>
     </div>
   </div>
