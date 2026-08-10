@@ -309,3 +309,31 @@ def test_item_minimum_persists_across_restart(tmp_path):
     ).test_client()
     assert b'value="4"' in restarted.get("/settings").data
     assert b'<span class="badge low">Low</span>' in restarted.get("/inventory").data
+
+
+def test_inventory_letter_selectors_filter_by_item_name(client):
+    all_items = client.get("/inventory").data
+    assert b'<nav class="alphabet" aria-label="Filter inventory by first letter">' in all_items
+    assert b'<a class="active" href="/inventory" aria-current="page">All</a>' in all_items
+    assert b"<strong>Bananas</strong>" in all_items
+    assert b"<strong>Milk</strong>" in all_items
+
+    b_items = client.get("/inventory?letter=B").data
+    assert b'<a class="active" href="/inventory?letter=B" aria-current="page">B</a>' in b_items
+    assert b"<strong>Bananas</strong>" in b_items
+    assert b"<strong>Brown rice</strong>" in b_items
+    assert b"<strong>Milk</strong>" not in b_items
+    assert b"Showing 2 inventory items" in b_items
+
+
+def test_inventory_letter_filter_is_case_insensitive_and_combines_with_filters(client):
+    filtered = client.get("/inventory?letter=b&store=2").data
+    assert b"<strong>Bananas</strong>" in filtered
+    assert b"<strong>Brown rice</strong>" not in filtered
+    assert b'<input type="hidden" name="letter" value="B">' in filtered
+    assert b'<option value="2" selected>Fresh Market</option>' in filtered
+    assert b'<a class="" href="/inventory">All</a>' in filtered
+
+    invalid = client.get("/inventory?letter=invalid").data
+    assert b'<a class="active" href="/inventory" aria-current="page">All</a>' in invalid
+    assert b"<strong>Milk</strong>" in invalid

@@ -41,13 +41,20 @@ def create_app(test_config=None) -> Flask:
     def inventory():
         search = request.args.get("search", "").strip()
         store_id = request.args.get("store", type=int)
+        requested_letter = request.args.get("letter", "All").upper()
+        selected_letter = (
+            requested_letter
+            if len(requested_letter) == 1 and requested_letter in "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+            else "All"
+        )
         return render_template(
             "inventory.html",
             active="inventory",
-            items=grocery.inventory_items(search, store_id),
+            items=grocery.inventory_items(search, store_id, selected_letter),
             item_names=grocery.item_names(),
             search=search,
             selected_store=store_id,
+            selected_letter=selected_letter,
         )
 
     def item_redirect():

@@ -200,7 +200,9 @@ def _item_from_row(row, minimum: int) -> dict:
     return item
 
 
-def inventory_items(search: str = "", store_id: int | None = None) -> list[dict]:
+def inventory_items(
+    search: str = "", store_id: int | None = None, letter: str = "All"
+) -> list[dict]:
     minimum = item_minimum()
     clauses = []
     parameters: list = []
@@ -210,6 +212,9 @@ def inventory_items(search: str = "", store_id: int | None = None) -> list[dict]
     if store_id is not None:
         clauses.append("i.store_id = ?")
         parameters.append(store_id)
+    if len(letter) == 1 and letter.isascii() and letter.isalpha():
+        clauses.append("i.name LIKE ? COLLATE NOCASE")
+        parameters.append(f"{letter}%")
     where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
     rows = database.get_connection().execute(
         f"""SELECT i.id, i.name, i.store_id, i.quantity, i.created_at,
