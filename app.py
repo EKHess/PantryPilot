@@ -162,7 +162,15 @@ def create_app(test_config=None) -> Flask:
             if grocery_list["id"] == store_id
         ]
         if not lists:
-            lists = [{"id": store_id, "name": store["name"], "items": [], "count": 0}]
+            lists = [
+                {
+                    "id": store_id,
+                    "name": store["name"],
+                    "color": store["color"],
+                    "items": [],
+                    "count": 0,
+                }
+            ]
         filename = re.sub(r"[^a-z0-9]+", "-", store["name"].lower()).strip("-")
         return pdf_download(
             lists,

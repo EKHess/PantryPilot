@@ -9,13 +9,24 @@ def _pdf_text(value: str) -> str:
     return encoded.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
 
 
-def _page_stream(lines: list[tuple[str, int, bool]]) -> bytes:
+def _rgb(color: str) -> tuple[float, float, float]:
+    """Convert a CSS hexadecimal color to PDF RGB components."""
+    try:
+        return tuple(int(color[index : index + 2], 16) / 255 for index in (1, 3, 5))
+    except (AttributeError, TypeError, ValueError):
+        return (0.0, 0.0, 0.0)
+
+
+def _page_stream(lines: list[tuple[str, int, bool, str]]) -> bytes:
     commands = ["BT"]
     y = 750
-    for text, size, bold in lines:
+    for text, size, bold, color in lines:
         font = "F2" if bold else "F1"
-        commands.append(f"/{font} {size} Tf 54 {y} Td ({_pdf_text(text)}) Tj")
-        commands.append(f"-54 {-size - 8} Td")
+        red, green, blue = _rgb(color)
+        commands.append(f"{red:.3f} {green:.3f} {blue:.3f} rg")
+        # Tm sets an absolute text position. Using Td here would make each
+        # position relative to the previous line and push list items off-page.
+        commands.append(f"/{font} {size} Tf 1 0 0 1 54 {y} Tm ({_pdf_text(text)}) Tj")
         y -= size + 8
     commands.append("ET")
     return "\n".join(commands).encode("cp1252")
@@ -23,17 +34,34 @@ def _page_stream(lines: list[tuple[str, int, bool]]) -> bytes:
 
 def grocery_list_pdf(lists: list[dict], title: str = "Grocery Lists") -> bytes:
     """Build a PDF with store headings and an empty checkbox for every item."""
-    pages: list[list[tuple[str, int, bool]]] = []
-    current = [(title, 20, True), (f"Generated {date.today():%B %d, %Y}", 10, False)]
+    black = "#000000"
+    pages: list[list[tuple[str, int, bool, str]]] = []
+    current = [
+        (title, 20, True, black),
+        (f"Generated {date.today():%B %d, %Y}", 10, False, black),
+    ]
 
     for grocery_list in lists:
-        needed = 1 + len(grocery_list["items"])
-        if len(current) + needed > 31:
+        store_heading = (
+            grocery_list["name"],
+            15,
+            True,
+            grocery_list.get("color", black),
+        )
+        if len(current) >= 30:
             pages.append(current)
-            current = [(title + " (continued)", 18, True)]
-        current.append((grocery_list["name"], 15, True))
+            current = [(title + " (continued)", 18, True, black)]
+        current.append(store_heading)
         for item in grocery_list["items"]:
-            current.append((f"[ ]  {item['name']}    Qty {item['quantity']}", 11, False))
+            if len(current) >= 30:
+                pages.append(current)
+                current = [
+                    (title + " (continued)", 18, True, black),
+                    store_heading,
+                ]
+            current.append(
+                (f"[ ]  {item['name']}    Qty {item['quantity']}", 11, False, black)
+            )
     pages.append(current)
 
     objects: list[bytes] = []

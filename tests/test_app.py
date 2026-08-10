@@ -291,6 +291,8 @@ def test_grocery_lists_default_to_out_items_and_toggle_low_items(client):
     assert b"Dish soap" in default_page.data
     assert b"Bananas" not in default_page.data
     assert b'name="include_low" value="1"  onchange' in default_page.data
+    store_lists = default_page.data.split(b'<section class="lists-grid">', 1)[1]
+    assert b'<input type="checkbox">' not in store_lists
 
     with_low = client.get("/grocery-lists?include_low=1")
     assert b"Milk" in with_low.data
@@ -308,6 +310,7 @@ def test_store_and_all_grocery_list_pdf_downloads(client):
     assert store_pdf.data.startswith(b"%PDF-1.4")
     assert b"Milk" in store_pdf.data
     assert b"Eggs" not in store_pdf.data
+    assert b"1 0 0 1 54 681 Tm ([ ]  Milk    Qty 0) Tj" in store_pdf.data
 
     all_pdf = client.get("/grocery-lists/download?include_low=1")
     assert all_pdf.status_code == 200
@@ -318,6 +321,9 @@ def test_store_and_all_grocery_list_pdf_downloads(client):
     assert b"Bananas" in all_pdf.data
     assert b"Brown rice" in all_pdf.data
     assert all_pdf.data.index(b"Costco") < all_pdf.data.index(b"Fresh Market")
+    # Store headings use their configured colors in the combined PDF.
+    assert b"0.145 0.388 0.922 rg" in all_pdf.data
+    assert b"0.086 0.639 0.290 rg" in all_pdf.data
 
 
 def test_store_pdf_for_missing_store_is_not_found(client):

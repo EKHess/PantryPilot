@@ -377,6 +377,7 @@ def grocery_lists(include_low: bool = False) -> list[dict]:
                 {
                     "id": store["id"],
                     "name": store["name"],
+                    "color": store["color"],
                     "count": len(items),
                     "items": items,
                 }
