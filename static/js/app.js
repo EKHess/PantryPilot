@@ -9,7 +9,7 @@ toggle?.addEventListener('click', () => {
 function openModal(modal) {
   modal.classList.add('open');
   modal.setAttribute('aria-hidden', 'false');
-  modal.querySelector('input, select, button')?.focus();
+  (modal.querySelector('input, select') || modal.querySelector('button'))?.focus();
 }
 
 function closeModal(modal) {
@@ -25,6 +25,25 @@ document.querySelectorAll('[data-open-store-modal]').forEach((button) => button.
   openModal(document.querySelector('#store-modal'));
 }));
 
+document.querySelectorAll('[data-edit-store]').forEach((button) => button.addEventListener('click', () => {
+  const modal = document.querySelector('#edit-store-modal');
+  const form = modal.querySelector('form');
+  const nameInput = modal.querySelector('[name="name"]');
+  const colorInput = modal.querySelector('[name="color"]');
+  form.action = button.dataset.action;
+  nameInput.value = button.dataset.name;
+  colorInput.value = button.dataset.color;
+  modal.querySelector('output').value = button.dataset.color;
+  openModal(modal);
+}));
+
+document.querySelectorAll('[data-delete-store]').forEach((button) => button.addEventListener('click', () => {
+  const modal = document.querySelector('#delete-store-modal');
+  modal.querySelector('form').action = button.dataset.action;
+  modal.querySelector('[data-delete-store-name]').textContent = button.dataset.name;
+  openModal(modal);
+}));
+
 document.querySelectorAll('.modal').forEach((modal) => {
   modal.querySelectorAll('.modal-close, [data-close-modal]').forEach((button) => {
     button.addEventListener('click', () => closeModal(modal));
@@ -38,7 +57,8 @@ document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape') document.querySelectorAll('.modal.open').forEach(closeModal);
 });
 
-const colorInput = document.querySelector('#store-color');
-colorInput?.addEventListener('input', () => {
-  document.querySelector('output[for="store-color"]').value = colorInput.value;
+document.querySelectorAll('input[type="color"]').forEach((colorInput) => {
+  colorInput.addEventListener('input', () => {
+    colorInput.closest('.color-field').querySelector('output').value = colorInput.value;
+  });
 });

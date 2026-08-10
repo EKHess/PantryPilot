@@ -65,3 +65,60 @@ def test_add_store_rejects_case_insensitive_duplicates(client):
     )
 
     assert b"A store with that name already exists." in response.data
+
+
+def test_edit_store_updates_everywhere_store_is_used(client):
+    response = client.post(
+        "/stores/1/edit",
+        data={"name": "Bulk Club", "color": "#112233"},
+        follow_redirects=True,
+    )
+
+    assert b"Bulk Club was updated." in response.data
+    assert b'data-color="#112233"' in response.data
+
+    for path in ("/", "/inventory", "/grocery-lists"):
+        page = client.get(path)
+        assert b"Bulk Club" in page.data
+        assert b"Costco" not in page.data
+
+
+def test_edit_store_validates_duplicates_without_matching_itself(client):
+    unchanged = client.post(
+        "/stores/1/edit",
+        data={"name": "costco", "color": "#123456"},
+        follow_redirects=True,
+    )
+    duplicate = client.post(
+        "/stores/1/edit",
+        data={"name": "Walmart", "color": "#123456"},
+        follow_redirects=True,
+    )
+
+    assert b"costco was updated." in unchanged.data
+    assert b"A store with that name already exists." in duplicate.data
+
+
+def test_delete_store_removes_it_everywhere_and_does_not_reseed(tmp_path):
+    database_path = tmp_path / "delete-test.db"
+    app = create_app({"TESTING": True, "DATABASE": str(database_path)})
+    client = app.test_client()
+
+    response = client.post("/stores/2/delete", follow_redirects=True)
+
+    assert b"Fresh Market was deleted." in response.data
+    for path in ("/", "/inventory", "/grocery-lists"):
+        page = client.get(path)
+        assert b"Fresh Market" not in page.data
+    assert b"Unassigned" in client.get("/inventory").data
+
+    restarted_client = create_app(
+        {"TESTING": True, "DATABASE": str(database_path)}
+    ).test_client()
+    assert b"Fresh Market" not in restarted_client.get("/stores").data
+
+
+@pytest.mark.parametrize("action", ["edit", "delete"])
+def test_modifying_missing_store_is_not_found(client, action):
+    data = {"name": "Missing", "color": "#123456"} if action == "edit" else None
+    assert client.post(f"/stores/999/{action}", data=data).status_code == 404

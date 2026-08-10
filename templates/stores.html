@@ -5,7 +5,11 @@
   {% for store in stores %}
   <article class="card store-card">
     <span class="store-color" style="--store-color: {{ store.color }}" aria-hidden="true"></span>
-    <div><h2>{{ store.name }}</h2><p>Available for pantry items and grocery lists</p></div>
+    <div class="store-details"><h2>{{ store.name }}</h2><p>Available for pantry items and grocery lists</p></div>
+    <div class="store-actions">
+      <button class="icon-button" type="button" aria-label="Edit {{ store.name }}" data-edit-store data-name="{{ store.name }}" data-color="{{ store.color }}" data-action="{{ url_for('edit_store', store_id=store.id) }}">✎</button>
+      <button class="icon-button danger" type="button" aria-label="Delete {{ store.name }}" data-delete-store data-name="{{ store.name }}" data-action="{{ url_for('delete_store', store_id=store.id) }}">⌫</button>
+    </div>
   </article>
   {% else %}
   <article class="card empty-state"><span>🏪</span><h2>No stores yet</h2><p>Add your first store to start organizing pantry items.</p></article>
@@ -20,6 +24,28 @@
       <label for="store-name">Store name<input id="store-name" name="name" required maxlength="80" autocomplete="organization" placeholder="e.g. Neighborhood Market"></label>
       <label for="store-color">Store color<span class="color-field"><input id="store-color" name="color" type="color" value="#2d805f" required><output for="store-color">#2d805f</output></span></label>
       <div class="modal-actions"><button class="button" type="button" data-close-modal>Cancel</button><button class="button primary" type="submit">Add Store</button></div>
+    </form>
+  </div>
+</div>
+<div class="modal" id="edit-store-modal" aria-hidden="true">
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="edit-store-modal-title">
+    <button class="modal-close" type="button" aria-label="Close">×</button>
+    <h2 id="edit-store-modal-title">Edit store</h2>
+    <p>Changes to this store will appear everywhere it is used.</p>
+    <form method="post">
+      <label for="edit-store-name">Store name<input id="edit-store-name" name="name" required maxlength="80" autocomplete="organization"></label>
+      <label for="edit-store-color">Store color<span class="color-field"><input id="edit-store-color" name="color" type="color" required><output for="edit-store-color"></output></span></label>
+      <div class="modal-actions"><button class="button" type="button" data-close-modal>Cancel</button><button class="button primary" type="submit">Save Changes</button></div>
+    </form>
+  </div>
+</div>
+<div class="modal" id="delete-store-modal" aria-hidden="true">
+  <div class="modal-card confirm-card" role="alertdialog" aria-modal="true" aria-labelledby="delete-store-modal-title" aria-describedby="delete-store-message">
+    <button class="modal-close" type="button" aria-label="Close">×</button>
+    <h2 id="delete-store-modal-title">Delete store?</h2>
+    <p id="delete-store-message"><strong data-delete-store-name></strong> will be removed from all store selections. Existing pantry items will become unassigned.</p>
+    <form method="post">
+      <div class="modal-actions"><button class="button" type="button" data-close-modal>Cancel</button><button class="button danger-button" type="submit">Delete Store</button></div>
     </form>
   </div>
 </div>

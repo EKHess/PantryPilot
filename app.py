@@ -1,6 +1,6 @@
 """PantryPilot Flask application entrypoint."""
 
-from flask import Flask, flash, redirect, render_template, request, url_for
+from flask import Flask, abort, flash, redirect, render_template, request, url_for
 import argparse
 
 import database
@@ -49,6 +49,28 @@ def create_app(test_config=None) -> Flask:
                 flash(f"{store['name']} was added.", "success")
             return redirect(url_for("stores"))
         return render_template("stores.html", active="stores", stores=grocery.stores())
+
+    @app.post("/stores/<int:store_id>/edit")
+    def edit_store(store_id):
+        try:
+            store = grocery.update_store(
+                store_id, request.form.get("name", ""), request.form.get("color", "")
+            )
+        except grocery.StoreValidationError as error:
+            flash(str(error), "error")
+        else:
+            if store is None:
+                abort(404)
+            flash(f"{store['name']} was updated.", "success")
+        return redirect(url_for("stores"))
+
+    @app.post("/stores/<int:store_id>/delete")
+    def delete_store(store_id):
+        store = grocery.delete_store(store_id)
+        if store is None:
+            abort(404)
+        flash(f"{store['name']} was deleted.", "success")
+        return redirect(url_for("stores"))
 
     @app.get("/settings")
     def settings():
