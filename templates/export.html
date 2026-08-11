@@ -1,0 +1,11 @@
+{% extends 'base.html' %}{% block title %}Export · PantryPilot{% endblock %}
+{% block content %}
+<header class="page-header"><div><h1>Export</h1><p>Save a portable backup of your pantry.</p></div></header>
+<section class="card transfer-card">
+  <div class="transfer-icon" aria-hidden="true">⇩</div>
+  <h2>Export your pantry</h2>
+  <p>Download a copy of your current PantryPilot database. Keep this file somewhere safe so you can restore your inventory, stores, categories, and settings later.</p>
+  <a class="button primary link-button" href="{{ url_for('download_backup') }}" download>Export Backup Pantry</a>
+  <small>The backup downloads as a SQLite <strong>.db</strong> file.</small>
+</section>
+{% endblock %}

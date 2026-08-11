@@ -169,3 +169,29 @@ document.querySelectorAll('input[type="color"]').forEach((colorInput) => {
     colorInput.closest('.color-field').querySelector('output').value = colorInput.value;
   });
 });
+
+const databaseFile = document.querySelector('[data-database-file]');
+const dropZone = document.querySelector('[data-drop-zone]');
+const importButton = document.querySelector('[data-import-button]');
+const fileName = document.querySelector('[data-file-name]');
+
+function updateImportFile() {
+  const file = databaseFile?.files[0];
+  if (fileName) fileName.textContent = file ? file.name : 'SQLite .db files only';
+  if (importButton) importButton.disabled = !file;
+}
+
+databaseFile?.addEventListener('change', updateImportFile);
+['dragenter', 'dragover'].forEach((eventName) => dropZone?.addEventListener(eventName, (event) => {
+  event.preventDefault();
+  dropZone.classList.add('dragging');
+}));
+['dragleave', 'drop'].forEach((eventName) => dropZone?.addEventListener(eventName, (event) => {
+  event.preventDefault();
+  dropZone.classList.remove('dragging');
+}));
+dropZone?.addEventListener('drop', (event) => {
+  if (!event.dataTransfer.files.length) return;
+  databaseFile.files = event.dataTransfer.files;
+  updateImportFile();
+});

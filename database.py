@@ -2,6 +2,7 @@
 
 import sqlite3
 from pathlib import Path
+from typing import Iterable
 
 from flask import current_app, g
 
@@ -65,11 +66,26 @@ def initialize_schema() -> None:
     get_connection().commit()
 
 
+REQUIRED_IMPORT_COLUMNS = {
+    "stores": {"id", "name"},
+    "grocery_items": {"id", "name", "store_id", "quantity"},
+}
+
+
+def _table_columns(connection: sqlite3.Connection, table: str) -> Iterable[str]:
+    return (row[1] for row in connection.execute(f"PRAGMA table_info({table})"))
+
+
 def validate_import(path: str | Path) -> bool:
-    """Lightweight guard for a future database import workflow."""
+    """Return whether a file is an intact, compatible PantryPilot database."""
     try:
         with sqlite3.connect(path) as connection:
             result = connection.execute("PRAGMA integrity_check").fetchone()
-            return bool(result and result[0] == "ok")
+            if not result or result[0] != "ok":
+                return False
+            return all(
+                required.issubset(set(_table_columns(connection, table)))
+                for table, required in REQUIRED_IMPORT_COLUMNS.items()
+            )
     except sqlite3.DatabaseError:
         return False
