@@ -417,6 +417,15 @@ def create_item(name: str, store_id, quantity, category_id=None) -> dict:
         name, store_id, quantity, category_id
     )
     connection = database.get_connection()
+    duplicate = connection.execute(
+        """SELECT 1 FROM grocery_items
+           WHERE name = ? COLLATE NOCASE AND store_id = ?""",
+        (clean_name, clean_store_id),
+    ).fetchone()
+    if duplicate:
+        raise ItemValidationError(
+            "An item with this name and store already is in the pantry inventory."
+        )
     cursor = connection.execute(
         "INSERT INTO grocery_items (name, store_id, quantity, category_id) VALUES (?, ?, ?, ?)",
         (clean_name, clean_store_id, clean_quantity, clean_category_id),

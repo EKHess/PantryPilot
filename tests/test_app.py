@@ -152,6 +152,48 @@ def test_add_item_persists_and_uses_item_minimum_status(client):
     assert b"Out" in out_item.data
 
 
+def test_add_item_json_response_supports_quick_entry(client):
+    modal = client.get("/inventory").data
+    assert b"data-add-item-form" in modal
+    assert b"data-add-item-notification" in modal
+    assert b"data-done-adding" in modal
+
+    response = client.post(
+        "/items",
+        data={"name": "Yogurt", "store_id": "2", "quantity": "2"},
+        headers={"Accept": "application/json"},
+    )
+
+    assert response.status_code == 201
+    assert response.json == {
+        "ok": True,
+        "message": "Yogurt was added to the pantry.",
+    }
+    assert b"Yogurt" in client.get("/inventory").data
+
+
+def test_add_item_rejects_same_name_and_store_case_insensitively(client):
+    duplicate = client.post(
+        "/items",
+        data={"name": "  mILk  ", "store_id": "1", "quantity": "4"},
+        headers={"Accept": "application/json"},
+    )
+
+    assert duplicate.status_code == 400
+    assert duplicate.json == {
+        "ok": False,
+        "message": "An item with this name and store already is in the pantry inventory.",
+    }
+
+    # The same item name remains valid when it belongs to a different store.
+    other_store = client.post(
+        "/items",
+        data={"name": "Milk", "store_id": "2", "quantity": "1"},
+        headers={"Accept": "application/json"},
+    )
+    assert other_store.status_code == 201
+
+
 def test_categories_can_be_created_used_edited_and_deleted(client):
     created = client.post(
         "/categories",

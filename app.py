@@ -8,6 +8,7 @@ from flask import (
     Flask,
     abort,
     flash,
+    jsonify,
     redirect,
     render_template,
     request,
@@ -85,8 +86,17 @@ def create_app(test_config=None) -> Flask:
                 request.form.get("category_id"),
             )
         except grocery.ItemValidationError as error:
+            if request.accept_mimetypes.best == "application/json":
+                return jsonify({"ok": False, "message": str(error)}), 400
             flash(str(error), "error")
         else:
+            if request.accept_mimetypes.best == "application/json":
+                return jsonify(
+                    {
+                        "ok": True,
+                        "message": f"{item['name']} was added to the pantry.",
+                    }
+                ), 201
             flash(f"{item['name']} was added.", "success")
         return item_redirect()
 

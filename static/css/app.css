@@ -9,4 +9,5 @@
 .settings-list{display:grid;gap:18px}.settings-list .settings-card{max-width:820px}
 .lists-grid{grid-template-columns:1fr}
 .category-chip{display:inline-block;padding:5px 9px;border-left:4px solid var(--category-color);border-radius:6px;background:#f1f5f3;font-size:12px;font-weight:700}.optional{color:var(--muted);font-weight:400}
+.modal-notification{margin-top:18px;padding:11px 13px;border:1px solid;border-radius:9px;font-weight:600}.modal-notification.success{background:#e3f2ec;border-color:#a6d5c3;color:#1f684b}.modal-notification.error{background:#ffeaea;border-color:#efb8b8;color:#9a2424}
 @media print{.sidebar,.menu-toggle,.page-header .actions,.low-stock-toggle,.options,.store-list header .button{display:none}.main{margin:0;padding:20px}.lists-grid{display:block}.list-panel{border:0}.store-list{break-inside:avoid}}

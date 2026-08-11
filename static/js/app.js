@@ -21,6 +21,40 @@ document.querySelectorAll('[data-open-modal]').forEach((button) => button.addEve
   openModal(document.querySelector('#add-modal'));
 }));
 
+const addItemForm = document.querySelector('[data-add-item-form]');
+const addItemNotification = document.querySelector('[data-add-item-notification]');
+
+addItemForm?.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const submitButton = addItemForm.querySelector('[type="submit"]');
+  submitButton.disabled = true;
+  addItemNotification.hidden = true;
+
+  try {
+    const response = await fetch(addItemForm.action, {
+      method: 'POST',
+      body: new FormData(addItemForm),
+      headers: { Accept: 'application/json' },
+    });
+    const result = await response.json();
+    addItemNotification.textContent = result.message;
+    addItemNotification.className = `modal-notification ${response.ok ? 'success' : 'error'}`;
+    addItemNotification.hidden = false;
+    if (response.ok) addItemForm.querySelector('[name="name"]').value = '';
+  } catch (_error) {
+    addItemNotification.textContent = 'The item could not be added. Please try again.';
+    addItemNotification.className = 'modal-notification error';
+    addItemNotification.hidden = false;
+  } finally {
+    submitButton.disabled = false;
+    addItemForm.querySelector('[name="name"]').focus();
+  }
+});
+
+document.querySelector('[data-done-adding]')?.addEventListener('click', () => {
+  window.location.reload();
+});
+
 document.querySelectorAll('[data-open-store-modal]').forEach((button) => button.addEventListener('click', () => {
   openModal(document.querySelector('#store-modal'));
 }));
