@@ -1,0 +1,18 @@
+{% extends 'base.html' %}{% block title %}Import · PantryPilot{% endblock %}
+{% block content %}
+<header class="page-header"><div><h1>Import</h1><p>Restore your pantry from a PantryPilot backup.</p></div></header>
+<section class="card transfer-card">
+  <div class="warning-box" role="alert"><strong>Importing will overwrite your current pantry.</strong><span>Export your current pantry first to avoid losing items.</span><a href="{{ url_for('export_backup') }}">Export current pantry</a></div>
+  <form method="post" enctype="multipart/form-data" data-import-form>
+    <label class="drop-zone" for="database-file" data-drop-zone>
+      <span class="transfer-icon" aria-hidden="true">⇧</span>
+      <strong>Drag and drop a PantryPilot database here</strong>
+      <span>or</span>
+      <span class="button">Choose File</span>
+      <small data-file-name>SQLite .db files only</small>
+      <input id="database-file" name="database" type="file" accept=".db,application/vnd.sqlite3,application/x-sqlite3" required data-database-file>
+    </label>
+    <button class="button primary" type="submit" data-import-button disabled>Import Pantry</button>
+  </form>
+</section>
+{% endblock %}

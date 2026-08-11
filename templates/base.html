@@ -13,7 +13,7 @@
   <aside class="sidebar" id="sidebar">
     <a class="brand" href="/">Pantry<span>Pilot</span></a>
     <nav aria-label="Main navigation">
-      {% set links = [('dashboard','/','▦','Dashboard'),('inventory','/inventory','▤','Inventory'),('lists','/grocery-lists','✓','Grocery Lists'),('stores','/stores','▥','Stores'),('categories','/categories','◇','Categories'),('settings','/settings','⚙','Settings')] %}
+      {% set links = [('dashboard','/','▦','Dashboard'),('inventory','/inventory','▤','Inventory'),('lists','/grocery-lists','✓','Grocery Lists'),('stores','/stores','▥','Stores'),('categories','/categories','◇','Categories'),('import','/import','⇧','Import'),('export','/export','⇩','Export'),('settings','/settings','⚙','Settings')] %}
       {% for key, href, icon, label in links %}<a class="nav-link {{ 'active' if active == key }}" href="{{ href }}"><b>{{ icon }}</b>{{ label }}</a>{% endfor %}
     </nav>
   </aside>

@@ -1,3 +1,6 @@
+import io
+import sqlite3
+
 import pytest
 
 from app import create_app
@@ -16,6 +19,8 @@ def client(tmp_path):
     ("/stores", "Stores"),
     ("/categories", "Categories"),
     ("/settings", "Settings"),
+    ("/import", "Import"),
+    ("/export", "Export"),
 ])
 def test_pages_render(client, path, heading):
     response = client.get(path)
@@ -25,6 +30,59 @@ def test_pages_render(client, path, heading):
 
 def test_unknown_page_is_not_found(client):
     assert client.get("/missing").status_code == 404
+
+
+def test_export_downloads_current_database(client):
+    client.post("/items", data={"name": "Export me", "store_id": "1", "quantity": "4"})
+
+    response = client.get("/export/download")
+
+    assert response.status_code == 200
+    assert response.headers["Content-Disposition"] == 'attachment; filename=pantrypilot-backup.db'
+    with sqlite3.connect(":memory:") as restored:
+        restored.deserialize(response.data)
+        assert restored.execute(
+            "SELECT quantity FROM grocery_items WHERE name = 'Export me'"
+        ).fetchone() == (4,)
+
+
+def test_import_replaces_current_pantry(client, tmp_path):
+    client.post(
+        "/items",
+        data={"name": "Current-only item", "store_id": "1", "quantity": "2"},
+        follow_redirects=True,
+    )
+    source = tmp_path / "source.db"
+    source_client = create_app({"TESTING": True, "DATABASE": str(source)}).test_client()
+    source_client.post("/items", data={"name": "Restored item", "store_id": "1", "quantity": "7"})
+
+    response = client.post(
+        "/import",
+        data={"database": (io.BytesIO(source.read_bytes()), "backup.db")},
+        follow_redirects=True,
+    )
+
+    assert b"backup was imported successfully" in response.data
+    assert b"Restored item" in response.data
+    assert b"Current-only item" not in response.data
+
+
+@pytest.mark.parametrize(
+    "contents,filename,message",
+    [
+        (b"not sqlite", "backup.db", b"not a compatible PantryPilot database"),
+        (b"not sqlite", "backup.txt", b"must have a .db extension"),
+    ],
+)
+def test_import_rejects_invalid_files_without_changing_pantry(client, contents, filename, message):
+    response = client.post(
+        "/import",
+        data={"database": (io.BytesIO(contents), filename)},
+        follow_redirects=True,
+    )
+
+    assert message in response.data
+    assert b"Milk" in client.get("/inventory").data
 
 
 def test_add_store_persists_and_updates_store_choices(client):

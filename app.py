@@ -2,7 +2,11 @@
 
 import argparse
 from io import BytesIO
+import os
+from pathlib import Path
 import re
+import sqlite3
+import tempfile
 
 from flask import (
     Flask,
@@ -298,6 +302,61 @@ def create_app(test_config=None) -> Flask:
             item_minimum=grocery.item_minimum(),
             pdf_font_size=grocery.pdf_font_size(),
         )
+
+    @app.get("/export")
+    def export_backup():
+        return render_template("export.html", active="export")
+
+    @app.get("/export/download")
+    def download_backup():
+        backup = BytesIO()
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            snapshot_path = Path(temporary_directory) / "pantrypilot-backup.db"
+            with sqlite3.connect(snapshot_path) as snapshot:
+                database.get_connection().backup(snapshot)
+            backup.write(snapshot_path.read_bytes())
+        backup.seek(0)
+        return send_file(
+            backup,
+            mimetype="application/vnd.sqlite3",
+            as_attachment=True,
+            download_name="pantrypilot-backup.db",
+        )
+
+    @app.route("/import", methods=["GET", "POST"])
+    def import_backup():
+        if request.method == "POST":
+            uploaded = request.files.get("database")
+            if uploaded is None or not uploaded.filename:
+                flash("Choose a PantryPilot .db file to import.", "error")
+                return redirect(url_for("import_backup"))
+            if Path(uploaded.filename).suffix.lower() != ".db":
+                flash("The selected file must have a .db extension.", "error")
+                return redirect(url_for("import_backup"))
+
+            database_path = Path(app.config["DATABASE"])
+            database_path.parent.mkdir(parents=True, exist_ok=True)
+            descriptor, upload_path_string = tempfile.mkstemp(
+                prefix="pantrypilot-import-", suffix=".db", dir=database_path.parent
+            )
+            os.close(descriptor)
+            upload_path = Path(upload_path_string)
+            try:
+                uploaded.save(upload_path)
+                if not database.validate_import(upload_path):
+                    flash(
+                        "That file is not a compatible PantryPilot database. Your pantry was not changed.",
+                        "error",
+                    )
+                    return redirect(url_for("import_backup"))
+                database.close_connection()
+                os.replace(upload_path, database_path)
+                database.initialize_schema()
+            finally:
+                upload_path.unlink(missing_ok=True)
+            flash("Your PantryPilot backup was imported successfully.", "success")
+            return redirect(url_for("inventory"))
+        return render_template("import.html", active="import")
 
     return app
 
