@@ -5,6 +5,14 @@ from datetime import date
 PAGE_WIDTH = 612
 PAGE_HEIGHT = 792
 BLACK = "0 0 0"
+CONTENT_BOTTOM = 58
+
+# Widths from Helvetica's built-in AFM data, expressed in thousandths of an em.
+# Using the real font metrics here is important: character counts substantially
+# underestimate strings containing wide letters and caused text to spill into
+# the next column in larger print sizes.
+_NARROW = set(" !'.,:;ijlI|[]()")
+_WIDE = set("MW@%&#m")
 
 
 def _pdf_text(value: str) -> str:
@@ -26,13 +34,26 @@ def _rect(commands, x, y, width, height, stroke_width=0.7):
 
 
 def _wrapped(value: str, width: float, size: int) -> list[str]:
-    """Wrap text using a conservative Helvetica character-width estimate."""
-    max_chars = max(8, int(width / (size * 0.52)))
+    """Wrap text to a measured width, including unusually long single words."""
+    def text_width(text):
+        units = sum(278 if char in _NARROW else 833 if char in _WIDE else 556 for char in text)
+        return units * size / 1000
+
     words = value.split()
     lines, current = [], ""
-    for word in words:
+    for original_word in words:
+        word = original_word
+        while word and text_width(word) > width:
+            split_at = max(index for index in range(1, len(word) + 1) if text_width(word[:index]) <= width)
+            if current:
+                lines.append(current)
+                current = ""
+            lines.append(word[:split_at])
+            word = word[split_at:]
+        if not word:
+            continue
         candidate = f"{current} {word}".strip()
-        if current and len(candidate) > max_chars:
+        if current and text_width(candidate) > width:
             lines.append(current)
             current = word
         else:
@@ -89,18 +110,31 @@ def _page_header(commands, lists, sort_first, page_number, title):
 def _footer(commands, page_number):
     _line(commands, 32, 42, 580, 42, 0.8)
     _text(commands, "Shop smart. Save time. Waste less.", 205, 23, 9)
-    _text(commands, str(page_number), 563, 23, 8)
+    _text(commands, f"Page {page_number} of {{total_pages}}", 505, 23, 8)
 
 
 def _item_height(item, width, size):
-    return max(24, len(_wrapped(f"{item['name']} (Qty: {item['quantity']})", width - 28, size)) * (size + 3) + 7)
+    line_height = size + 3
+    return max(24, len(_wrapped(f"{item['name']} (Qty: {item['quantity']})", width - 22, size)) * line_height + 7)
+
+
+def _draw_wrapped_text(commands, value, x, y, width, size, bold=False):
+    """Draw a heading without allowing it to intrude into an adjacent column."""
+    lines = _wrapped(value, width, size)
+    line_height = size + 2
+    for index, line in enumerate(lines):
+        _text(commands, line, x, y - index * line_height, size, bold)
+    return y - len(lines) * line_height
 
 
 def _draw_item(commands, item, x, y, width, size):
-    lines = _wrapped(f"{item['name']} (Qty: {item['quantity']})", width - 28, size)
-    _rect(commands, x, y - 10, 10, 10, 0.55)
+    lines = _wrapped(f"{item['name']} (Qty: {item['quantity']})", width - 22, size)
+    # PDF text positions are baselines. Align the box with the glyph body of the
+    # first line rather than putting its top on the baseline (which looked low).
+    checkbox_y = y + size * 0.35 - 5
+    _rect(commands, x, round(checkbox_y, 2), 10, 10, 0.55)
     for index, line in enumerate(lines):
-        _text(commands, line, x + 19, y - index * (size + 3), size)
+        _text(commands, line, x + 16, y - index * (size + 3), size)
     return y - max(24, len(lines) * (size + 3) + 7)
 
 
@@ -128,9 +162,11 @@ def _render_store_first(pages, lists, font_size, title):
                 if column:
                     _line(commands, x - gap / 2, top + 5, x - gap / 2, 58, 0.35)
                 heading = primary["name"] + (" (continued)" if not first_batch_page else "")
-                _text(commands, heading.upper(), x, top, 13, True)
-                _line(commands, x, top - 9, x + column_width, top - 9, 0.8)
-                y = top - 29
+                heading_bottom = _draw_wrapped_text(
+                    commands, heading.upper(), x, top, column_width, 13, True
+                )
+                _line(commands, x, heading_bottom + 4, x + column_width, heading_bottom + 4, 0.8)
+                y = heading_bottom - 16
                 if (
                     positions[column] < len(tokens[column])
                     and tokens[column][positions[column]][0] == "item"
@@ -153,13 +189,13 @@ def _render_store_first(pages, lists, font_size, title):
                             else 0
                         )
                         required = 24 + next_height
-                        if y - required < 58:
+                        if y - required < CONTENT_BOTTOM:
                             break
                         _text(commands, f"{token[1].upper()}  ({token[2]})", x, y, 10, True)
                         y -= 24
                     else:
                         needed = _item_height(token[1], column_width, font_size)
-                        if y - needed < 58:
+                        if y - needed < CONTENT_BOTTOM:
                             break
                         y = _draw_item(commands, token[1], x + 2, y, column_width - 2, font_size)
                     positions[column] += 1
@@ -198,12 +234,14 @@ def _render_category_first(pages, lists, font_size, title):
                     x = 32 + column * (column_width + gap)
                     if column:
                         _line(commands, x - gap / 2, section_top + 7, x - gap / 2, 58, 0.35)
-                    _text(commands, group["name"].upper(), x, section_top, 10, True)
-                    column_y = section_top - 23
+                    heading_bottom = _draw_wrapped_text(
+                        commands, group["name"].upper(), x, section_top, column_width, 10, True
+                    )
+                    column_y = heading_bottom - 11
                     while group_positions[column] < len(group["items"]):
                         item = group["items"][group_positions[column]]
                         needed = _item_height(item, column_width, font_size)
-                        if column_y - needed < 58:
+                        if column_y - needed < CONTENT_BOTTOM:
                             break
                         column_y = _draw_item(commands, item, x + 2, column_y, column_width - 2, font_size)
                         group_positions[column] += 1
@@ -238,6 +276,14 @@ def grocery_list_pdf(lists: list[dict], title: str = "Compiled Grocery List", fo
         _text(commands, "Your pantry is stocked. No items are currently needed.", 32, 590, 11)
         _footer(commands, 1)
         pages.append(commands)
+
+    # Page count is only known after the content has been flowed. Delaying this
+    # substitution keeps pagination independent from document assembly.
+    total_pages = len(pages)
+    pages = [
+        [command.replace("{total_pages}", str(total_pages)) for command in commands]
+        for commands in pages
+    ]
 
     objects: list[bytes] = []
     page_ids = []

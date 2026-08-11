@@ -493,7 +493,9 @@ def test_store_and_all_grocery_list_pdf_downloads(client):
     assert store_pdf.data.startswith(b"%PDF-1.4")
     assert b"Milk" in store_pdf.data
     assert b"Eggs" not in store_pdf.data
-    assert b"34 547 10 10 re S" in store_pdf.data
+    # The checkbox surrounds the first line's glyph body instead of sitting
+    # below its text baseline.
+    assert b"34 554.2 10 10 re S" in store_pdf.data
     assert b"(Milk \\(Qty: 0\\)) Tj" in store_pdf.data
     assert b"[ ]" not in store_pdf.data
     assert b"(PantryPilot) Tj" in store_pdf.data
@@ -533,6 +535,23 @@ def test_long_pdf_lists_repeat_context_across_pages(client):
     assert b"(Costco Grocery List \xb7 Continued)" in pdf
     assert b"(MISC \\(continued\\))" in pdf
     assert pdf.count(b"(Shop smart. Save time. Waste less.)") >= 2
+    assert b"(Page 1 of 2)" in pdf or b"(Page 1 of 3)" in pdf
+
+
+def test_pdf_wraps_long_store_headings_inside_their_columns(client):
+    client.post(
+        "/stores",
+        data={"name": "A Very Long Neighborhood Grocery Marketplace", "color": "#123456"},
+    )
+    client.post(
+        "/items",
+        data={"name": "Paper towels", "store_id": "5", "quantity": "0"},
+    )
+
+    pdf = client.get("/grocery-lists/download").data
+
+    assert b"(A VERY LONG NEIGHBORHOOD) Tj" in pdf
+    assert b"(GROCERY MARKETPLACE) Tj" in pdf
 
 
 def test_pdf_font_size_setting_updates_all_exported_pdfs(client):
