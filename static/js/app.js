@@ -25,6 +25,26 @@ document.querySelectorAll('[data-open-store-modal]').forEach((button) => button.
   openModal(document.querySelector('#store-modal'));
 }));
 
+document.querySelectorAll('[data-open-category-modal]').forEach((button) => button.addEventListener('click', () => {
+  openModal(document.querySelector('#category-modal'));
+}));
+
+document.querySelectorAll('[data-edit-category]').forEach((button) => button.addEventListener('click', () => {
+  const modal = document.querySelector('#edit-category-modal');
+  modal.querySelector('form').action = button.dataset.action;
+  modal.querySelector('[name="name"]').value = button.dataset.name;
+  modal.querySelector('[name="color"]').value = button.dataset.color;
+  modal.querySelector('output').value = button.dataset.color;
+  openModal(modal);
+}));
+
+document.querySelectorAll('[data-delete-category]').forEach((button) => button.addEventListener('click', () => {
+  const modal = document.querySelector('#delete-category-modal');
+  modal.querySelector('form').action = button.dataset.action;
+  modal.querySelector('[data-delete-category-name]').textContent = button.dataset.name;
+  openModal(modal);
+}));
+
 document.querySelectorAll('[data-edit-store]').forEach((button) => button.addEventListener('click', () => {
   const modal = document.querySelector('#edit-store-modal');
   const form = modal.querySelector('form');
@@ -50,6 +70,7 @@ document.querySelectorAll('[data-edit-item]').forEach((button) => button.addEven
   form.action = button.dataset.action;
   form.querySelector('[name="name"]').value = button.dataset.name;
   form.querySelector('[name="store_id"]').value = button.dataset.storeId;
+  form.querySelector('[name="category_id"]').value = button.dataset.categoryId;
   form.querySelector('[name="quantity"]').value = button.dataset.quantity;
   form.querySelector('[name="return_to"]').value = button.dataset.returnTo;
   openModal(modal);

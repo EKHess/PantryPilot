@@ -33,10 +33,11 @@ def create_app(test_config=None) -> Flask:
         database.initialize_schema()
         grocery.seed_stores()
         grocery.seed_items()
+        grocery.seed_categories()
 
     @app.context_processor
-    def store_choices():
-        return {"store_choices": grocery.stores()}
+    def form_choices():
+        return {"store_choices": grocery.stores(), "category_choices": grocery.categories()}
 
     @app.get("/")
     def dashboard():
@@ -81,6 +82,7 @@ def create_app(test_config=None) -> Flask:
                 request.form.get("name", ""),
                 request.form.get("store_id"),
                 request.form.get("quantity"),
+                request.form.get("category_id"),
             )
         except grocery.ItemValidationError as error:
             flash(str(error), "error")
@@ -96,6 +98,7 @@ def create_app(test_config=None) -> Flask:
                 request.form.get("name", ""),
                 request.form.get("store_id"),
                 request.form.get("quantity"),
+                request.form.get("category_id"),
             )
         except grocery.ItemValidationError as error:
             flash(str(error), "error")
@@ -212,6 +215,46 @@ def create_app(test_config=None) -> Flask:
             abort(404)
         flash(f"{store['name']} was deleted.", "success")
         return redirect(url_for("stores"))
+
+    @app.route("/categories", methods=["GET", "POST"])
+    def categories():
+        if request.method == "POST":
+            try:
+                category = grocery.create_category(
+                    request.form.get("name", ""), request.form.get("color", "")
+                )
+            except grocery.CategoryValidationError as error:
+                flash(str(error), "error")
+            else:
+                flash(f"{category['name']} was added.", "success")
+            return redirect(url_for("categories"))
+        return render_template("categories.html", active="categories", categories=grocery.categories())
+
+    @app.post("/categories/<int:category_id>/edit")
+    def edit_category(category_id):
+        try:
+            category = grocery.update_category(
+                category_id, request.form.get("name", ""), request.form.get("color", "")
+            )
+        except grocery.CategoryValidationError as error:
+            flash(str(error), "error")
+        else:
+            if category is None:
+                abort(404)
+            flash(f"{category['name']} was updated.", "success")
+        return redirect(url_for("categories"))
+
+    @app.post("/categories/<int:category_id>/delete")
+    def delete_category(category_id):
+        try:
+            category = grocery.delete_category(category_id)
+        except grocery.CategoryValidationError as error:
+            flash(str(error), "error")
+        else:
+            if category is None:
+                abort(404)
+            flash(f"{category['name']} was deleted.", "success")
+        return redirect(url_for("categories"))
 
     @app.route("/settings", methods=["GET", "POST"])
     def settings():

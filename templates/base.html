@@ -13,7 +13,7 @@
   <aside class="sidebar" id="sidebar">
     <a class="brand" href="/">Pantry<span>Pilot</span></a>
     <nav aria-label="Main navigation">
-      {% set links = [('dashboard','/','▦','Dashboard'),('inventory','/inventory','▤','Inventory'),('lists','/grocery-lists','✓','Grocery Lists'),('stores','/stores','▥','Stores'),('settings','/settings','⚙','Settings')] %}
+      {% set links = [('dashboard','/','▦','Dashboard'),('inventory','/inventory','▤','Inventory'),('lists','/grocery-lists','✓','Grocery Lists'),('stores','/stores','▥','Stores'),('categories','/categories','◇','Categories'),('settings','/settings','⚙','Settings')] %}
       {% for key, href, icon, label in links %}<a class="nav-link {{ 'active' if active == key }}" href="{{ href }}"><b>{{ icon }}</b>{{ label }}</a>{% endfor %}
     </nav>
   </aside>
@@ -32,6 +32,7 @@
         <input type="hidden" name="return_to" value="{{ active if active in ['dashboard', 'inventory'] else 'dashboard' }}">
         <label for="item-name">Item name<input id="item-name" name="name" required maxlength="120" placeholder="e.g. Oat milk"></label>
         <label for="item-store">Store<select id="item-store" name="store_id" required><option value="" disabled selected>Choose a store</option>{% for store in store_choices %}<option value="{{ store.id }}">{{ store.name }}</option>{% endfor %}</select></label>
+        <label for="item-category">Category <span class="optional">(optional)</span><select id="item-category" name="category_id"><option value="">misc</option>{% for category in category_choices if category.name|lower != 'misc' %}<option value="{{ category.id }}">{{ category.name }}</option>{% endfor %}</select></label>
         <label for="item-quantity">Quantity<input id="item-quantity" name="quantity" type="number" min="0" step="1" value="0" required></label>
         <div class="modal-actions"><button class="button" type="button" data-close-modal>Cancel</button><button class="button primary" type="submit" {{ 'disabled' if not store_choices }}>Add Item</button></div>
       </form>
@@ -45,6 +46,7 @@
         <input type="hidden" name="return_to">
         <label for="edit-item-name">Item name<input id="edit-item-name" name="name" required maxlength="120"></label>
         <label for="edit-item-store">Store<select id="edit-item-store" name="store_id" required>{% for store in store_choices %}<option value="{{ store.id }}">{{ store.name }}</option>{% endfor %}</select></label>
+        <label for="edit-item-category">Category<select id="edit-item-category" name="category_id">{% for category in category_choices %}<option value="{{ category.id }}">{{ category.name }}</option>{% endfor %}</select></label>
         <label for="edit-item-quantity">Quantity<input id="edit-item-quantity" name="quantity" type="number" min="0" step="1" required></label>
         <div class="modal-actions"><button class="button" type="button" data-close-modal>Cancel</button><button class="button primary" type="submit">Save Changes</button></div>
       </form>

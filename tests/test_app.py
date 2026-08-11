@@ -14,6 +14,7 @@ def client(tmp_path):
     ("/inventory", "Inventory"),
     ("/grocery-lists", "Grocery lists"),
     ("/stores", "Stores"),
+    ("/categories", "Categories"),
     ("/settings", "Settings"),
 ])
 def test_pages_render(client, path, heading):
@@ -141,6 +142,7 @@ def test_add_item_persists_and_uses_item_minimum_status(client):
     assert b"Fresh Market" in response.data
     assert b"In Stock" in response.data
     assert b'data-quantity="2"' in response.data
+    assert b">misc</span>" in response.data
 
     out_item = client.post(
         "/items",
@@ -148,6 +150,56 @@ def test_add_item_persists_and_uses_item_minimum_status(client):
         follow_redirects=True,
     )
     assert b"Out" in out_item.data
+
+
+def test_categories_can_be_created_used_edited_and_deleted(client):
+    created = client.post(
+        "/categories",
+        data={"name": "  Fresh   Food ", "color": "#AABBCC"},
+        follow_redirects=True,
+    )
+    assert b"Fresh Food was added." in created.data
+    assert b'data-color="#aabbcc"' in created.data
+
+    item = client.post(
+        "/items",
+        data={"name": "Apples", "store_id": "1", "quantity": "3", "category_id": "2"},
+        follow_redirects=True,
+    )
+    assert b">Fresh Food</span>" in item.data
+    assert b'data-category-id="2"' in item.data
+
+    edited = client.post(
+        "/categories/2/edit",
+        data={"name": "Produce", "color": "#112233"},
+        follow_redirects=True,
+    )
+    assert b"Produce was updated." in edited.data
+    assert b">Produce</span>" in client.get("/inventory").data
+
+    deleted = client.post("/categories/2/delete", follow_redirects=True)
+    assert b"Produce was deleted." in deleted.data
+    inventory = client.get("/inventory").data
+    apples_row = inventory.split(b"<strong>Apples</strong>", 1)[1].split(b"</tr>", 1)[0]
+    assert b">misc</span>" in apples_row
+
+
+def test_item_rejects_unknown_category_and_misc_is_protected(client):
+    invalid = client.post(
+        "/items",
+        data={"name": "Bread", "store_id": "1", "quantity": "1", "category_id": "999"},
+        follow_redirects=True,
+    )
+    assert b"Choose a valid category." in invalid.data
+
+    renamed = client.post(
+        "/categories/1/edit",
+        data={"name": "Other", "color": "#64748b"},
+        follow_redirects=True,
+    )
+    assert b"The misc category cannot be renamed." in renamed.data
+    deleted = client.post("/categories/1/delete", follow_redirects=True)
+    assert b"The misc category cannot be deleted." in deleted.data
 
 
 @pytest.mark.parametrize(
