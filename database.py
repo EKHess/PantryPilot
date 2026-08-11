@@ -20,6 +20,11 @@ CREATE TABLE IF NOT EXISTS grocery_items (
     quantity INTEGER NOT NULL DEFAULT 0 CHECK (quantity >= 0),
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+CREATE TABLE IF NOT EXISTS categories (
+    id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL COLLATE NOCASE UNIQUE,
+    color TEXT NOT NULL DEFAULT '#64748b'
+);
 CREATE TABLE IF NOT EXISTS app_metadata (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
@@ -49,6 +54,13 @@ def initialize_schema() -> None:
     if "color" not in columns:
         get_connection().execute(
             "ALTER TABLE stores ADD COLUMN color TEXT NOT NULL DEFAULT '#2d805f'"
+        )
+    item_columns = {
+        row["name"] for row in get_connection().execute("PRAGMA table_info(grocery_items)")
+    }
+    if "category_id" not in item_columns:
+        get_connection().execute(
+            "ALTER TABLE grocery_items ADD COLUMN category_id INTEGER REFERENCES categories(id)"
         )
     get_connection().commit()
 

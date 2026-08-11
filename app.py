@@ -8,6 +8,7 @@ from flask import (
     Flask,
     abort,
     flash,
+    jsonify,
     redirect,
     render_template,
     request,
@@ -33,10 +34,11 @@ def create_app(test_config=None) -> Flask:
         database.initialize_schema()
         grocery.seed_stores()
         grocery.seed_items()
+        grocery.seed_categories()
 
     @app.context_processor
-    def store_choices():
-        return {"store_choices": grocery.stores()}
+    def form_choices():
+        return {"store_choices": grocery.stores(), "category_choices": grocery.categories()}
 
     @app.get("/")
     def dashboard():
@@ -81,10 +83,20 @@ def create_app(test_config=None) -> Flask:
                 request.form.get("name", ""),
                 request.form.get("store_id"),
                 request.form.get("quantity"),
+                request.form.get("category_id"),
             )
         except grocery.ItemValidationError as error:
+            if request.accept_mimetypes.best == "application/json":
+                return jsonify({"ok": False, "message": str(error)}), 400
             flash(str(error), "error")
         else:
+            if request.accept_mimetypes.best == "application/json":
+                return jsonify(
+                    {
+                        "ok": True,
+                        "message": f"{item['name']} was added to the pantry.",
+                    }
+                ), 201
             flash(f"{item['name']} was added.", "success")
         return item_redirect()
 
@@ -96,6 +108,7 @@ def create_app(test_config=None) -> Flask:
                 request.form.get("name", ""),
                 request.form.get("store_id"),
                 request.form.get("quantity"),
+                request.form.get("category_id"),
             )
         except grocery.ItemValidationError as error:
             flash(str(error), "error")
@@ -126,13 +139,17 @@ def create_app(test_config=None) -> Flask:
     @app.get("/grocery-lists")
     def grocery_lists():
         include_low = request.args.get("include_low") == "1"
-        lists = grocery.grocery_lists(include_low=include_low)
+        sort_first = (
+            "category" if request.args.get("sort_first") == "category" else "store"
+        )
+        lists = grocery.grocery_lists(include_low=include_low, sort_first=sort_first)
         return render_template(
             "grocery_lists.html",
             active="lists",
             lists=lists,
             list_item_count=sum(grocery_list["count"] for grocery_list in lists),
             include_low=include_low,
+            sort_first=sort_first,
         )
 
     def pdf_download(lists, filename, title):
@@ -145,21 +162,23 @@ def create_app(test_config=None) -> Flask:
 
     @app.get("/grocery-lists/download")
     def download_all_grocery_lists():
-        lists = grocery.grocery_lists(request.args.get("include_low") == "1")
-        return pdf_download(lists, "pantrypilot-grocery-lists.pdf", "Grocery Lists")
+        lists = grocery.grocery_lists(
+            request.args.get("include_low") == "1",
+            request.args.get("sort_first", "store"),
+        )
+        return pdf_download(
+            lists, "pantrypilot-grocery-lists.pdf", "Compiled Grocery List"
+        )
 
     @app.get("/grocery-lists/stores/<int:store_id>/download")
     def download_store_grocery_list(store_id):
         store = grocery.get_store(store_id)
         if store is None:
             abort(404)
-        lists = [
-            grocery_list
-            for grocery_list in grocery.grocery_lists(
-                request.args.get("include_low") == "1"
-            )
-            if grocery_list["id"] == store_id
-        ]
+        sort_first = request.args.get("sort_first", "store")
+        lists = grocery.grocery_lists(
+            request.args.get("include_low") == "1", sort_first, store_id
+        )
         if not lists:
             lists = [
                 {
@@ -167,6 +186,7 @@ def create_app(test_config=None) -> Flask:
                     "name": store["name"],
                     "color": store["color"],
                     "items": [],
+                    "groups": [],
                     "count": 0,
                 }
             ]
@@ -212,6 +232,46 @@ def create_app(test_config=None) -> Flask:
             abort(404)
         flash(f"{store['name']} was deleted.", "success")
         return redirect(url_for("stores"))
+
+    @app.route("/categories", methods=["GET", "POST"])
+    def categories():
+        if request.method == "POST":
+            try:
+                category = grocery.create_category(
+                    request.form.get("name", ""), request.form.get("color", "")
+                )
+            except grocery.CategoryValidationError as error:
+                flash(str(error), "error")
+            else:
+                flash(f"{category['name']} was added.", "success")
+            return redirect(url_for("categories"))
+        return render_template("categories.html", active="categories", categories=grocery.categories())
+
+    @app.post("/categories/<int:category_id>/edit")
+    def edit_category(category_id):
+        try:
+            category = grocery.update_category(
+                category_id, request.form.get("name", ""), request.form.get("color", "")
+            )
+        except grocery.CategoryValidationError as error:
+            flash(str(error), "error")
+        else:
+            if category is None:
+                abort(404)
+            flash(f"{category['name']} was updated.", "success")
+        return redirect(url_for("categories"))
+
+    @app.post("/categories/<int:category_id>/delete")
+    def delete_category(category_id):
+        try:
+            category = grocery.delete_category(category_id)
+        except grocery.CategoryValidationError as error:
+            flash(str(error), "error")
+        else:
+            if category is None:
+                abort(404)
+            flash(f"{category['name']} was deleted.", "success")
+        return redirect(url_for("categories"))
 
     @app.route("/settings", methods=["GET", "POST"])
     def settings():

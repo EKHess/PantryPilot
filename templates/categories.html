@@ -1,0 +1,28 @@
+{% extends 'base.html' %}{% block title %}Categories · PantryPilot{% endblock %}
+{% block content %}
+<header class="page-header"><div><h1>Categories</h1><p>Organize pantry items into categories that make sense for you.</p></div><button class="button primary" data-open-category-modal>＋ Add Category</button></header>
+<section class="store-grid" aria-label="Categories">
+  {% for category in categories %}
+  <article class="card store-card">
+    <span class="store-color" style="--store-color: {{ category.color }}" aria-hidden="true"></span>
+    <div class="store-details"><h2>{{ category.name }}</h2><p>{% if category.name|lower == 'misc' %}Default for uncategorized pantry items{% else %}Available for pantry items{% endif %}</p></div>
+    <div class="store-actions">
+      <button class="icon-button" type="button" aria-label="Edit {{ category.name }}" data-edit-category data-name="{{ category.name }}" data-color="{{ category.color }}" data-action="{{ url_for('edit_category', category_id=category.id) }}">✎</button>
+      {% if category.name|lower != 'misc' %}<button class="icon-button danger" type="button" aria-label="Delete {{ category.name }}" data-delete-category data-name="{{ category.name }}" data-action="{{ url_for('delete_category', category_id=category.id) }}">⌫</button>{% endif %}
+    </div>
+  </article>
+  {% endfor %}
+</section>
+<div class="modal" id="category-modal" aria-hidden="true"><div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="category-modal-title">
+  <button class="modal-close" type="button" aria-label="Close">×</button><h2 id="category-modal-title">Add a category</h2><p>Choose a unique name and color for your category.</p>
+  <form method="post" action="{{ url_for('categories') }}"><label for="category-name">Category name<input id="category-name" name="name" required maxlength="80" placeholder="e.g. Produce"></label><label for="category-color">Category color<span class="color-field"><input id="category-color" name="color" type="color" value="#2d805f" required><output for="category-color">#2d805f</output></span></label><div class="modal-actions"><button class="button" type="button" data-close-modal>Cancel</button><button class="button primary" type="submit">Add Category</button></div></form>
+</div></div>
+<div class="modal" id="edit-category-modal" aria-hidden="true"><div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="edit-category-title">
+  <button class="modal-close" type="button" aria-label="Close">×</button><h2 id="edit-category-title">Edit category</h2><p>Changes appear on every pantry item using this category.</p>
+  <form method="post"><label for="edit-category-name">Category name<input id="edit-category-name" name="name" required maxlength="80"></label><label for="edit-category-color">Category color<span class="color-field"><input id="edit-category-color" name="color" type="color" required><output for="edit-category-color"></output></span></label><div class="modal-actions"><button class="button" type="button" data-close-modal>Cancel</button><button class="button primary" type="submit">Save Changes</button></div></form>
+</div></div>
+<div class="modal" id="delete-category-modal" aria-hidden="true"><div class="modal-card confirm-card" role="alertdialog" aria-modal="true" aria-labelledby="delete-category-title">
+  <button class="modal-close" type="button" aria-label="Close">×</button><h2 id="delete-category-title">Delete category?</h2><p><strong data-delete-category-name></strong> will be removed. Its pantry items will move to misc.</p>
+  <form method="post"><div class="modal-actions"><button class="button" type="button" data-close-modal>Cancel</button><button class="button danger-button" type="submit">Delete Category</button></div></form>
+</div></div>
+{% endblock %}

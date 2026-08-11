@@ -25,6 +25,7 @@ DEFAULT_ITEMS = [
 
 STORE_NAME_MAX_LENGTH = 80
 ITEM_NAME_MAX_LENGTH = 120
+CATEGORY_NAME_MAX_LENGTH = 80
 COLOR_PATTERN = re.compile(r"^#[0-9a-fA-F]{6}$")
 
 
@@ -34,6 +35,10 @@ class StoreValidationError(ValueError):
 
 class ItemValidationError(ValueError):
     """Raised when an inventory item cannot be saved."""
+
+
+class CategoryValidationError(ValueError):
+    """Raised when a category cannot be saved."""
 
 
 class SettingsValidationError(ValueError):
@@ -125,6 +130,104 @@ def seed_items() -> None:
         "INSERT INTO app_metadata (key, value) VALUES ('default_items_seeded', '1')"
     )
     connection.commit()
+
+
+def seed_categories() -> None:
+    """Ensure the miscellaneous fallback exists and assign it to uncategorized items."""
+    connection = database.get_connection()
+    connection.execute(
+        "INSERT OR IGNORE INTO categories (name, color) VALUES ('misc', '#64748b')"
+    )
+    misc_id = connection.execute(
+        "SELECT id FROM categories WHERE name = 'misc' COLLATE NOCASE"
+    ).fetchone()["id"]
+    connection.execute(
+        "UPDATE grocery_items SET category_id = ? WHERE category_id IS NULL", (misc_id,)
+    )
+    connection.commit()
+
+
+def categories() -> list[dict]:
+    rows = database.get_connection().execute(
+        "SELECT id, name, color FROM categories ORDER BY name COLLATE NOCASE"
+    ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def get_category(category_id: int) -> dict | None:
+    row = database.get_connection().execute(
+        "SELECT id, name, color FROM categories WHERE id = ?", (category_id,)
+    ).fetchone()
+    return dict(row) if row else None
+
+
+def _validated_category_values(name: str, color: str) -> tuple[str, str]:
+    clean_name = " ".join((name or "").split())
+    if not clean_name:
+        raise CategoryValidationError("Enter a category name.")
+    if len(clean_name) > CATEGORY_NAME_MAX_LENGTH:
+        raise CategoryValidationError(
+            f"Category names must be {CATEGORY_NAME_MAX_LENGTH} characters or fewer."
+        )
+    if not COLOR_PATTERN.fullmatch(color or ""):
+        raise CategoryValidationError("Choose a valid category color.")
+    return clean_name, color.lower()
+
+
+def create_category(name: str, color: str) -> dict:
+    clean_name, clean_color = _validated_category_values(name, color)
+    connection = database.get_connection()
+    try:
+        cursor = connection.execute(
+            "INSERT INTO categories (name, color) VALUES (?, ?)",
+            (clean_name, clean_color),
+        )
+        connection.commit()
+    except sqlite3.IntegrityError as error:
+        raise CategoryValidationError(
+            "A category with that name already exists."
+        ) from error
+    return {"id": cursor.lastrowid, "name": clean_name, "color": clean_color}
+
+
+def update_category(category_id: int, name: str, color: str) -> dict | None:
+    existing = get_category(category_id)
+    if not existing:
+        return None
+    clean_name, clean_color = _validated_category_values(name, color)
+    if existing["name"].lower() == "misc" and clean_name.lower() != "misc":
+        raise CategoryValidationError("The misc category cannot be renamed.")
+    connection = database.get_connection()
+    try:
+        connection.execute(
+            "UPDATE categories SET name = ?, color = ? WHERE id = ?",
+            (clean_name, clean_color, category_id),
+        )
+        connection.commit()
+    except sqlite3.IntegrityError as error:
+        raise CategoryValidationError(
+            "A category with that name already exists."
+        ) from error
+    return {"id": category_id, "name": clean_name, "color": clean_color}
+
+
+def delete_category(category_id: int) -> dict | None:
+    connection = database.get_connection()
+    category = get_category(category_id)
+    if not category:
+        return None
+    if category["name"].lower() == "misc":
+        raise CategoryValidationError("The misc category cannot be deleted.")
+    misc_id = connection.execute(
+        "SELECT id FROM categories WHERE name = 'misc' COLLATE NOCASE"
+    ).fetchone()["id"]
+    connection.execute(
+        "UPDATE grocery_items SET category_id = ? WHERE category_id = ?",
+        (misc_id, category_id),
+    )
+    connection.execute("DELETE FROM categories WHERE id = ?", (category_id,))
+    connection.commit()
+    return category
 
 
 def stores() -> list[dict]:
@@ -243,10 +346,12 @@ def inventory_items(
         parameters.append(f"{letter}%")
     where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
     rows = database.get_connection().execute(
-        f"""SELECT i.id, i.name, i.store_id, i.quantity, i.created_at,
-                   s.name AS store
+        f"""SELECT i.id, i.name, i.store_id, i.category_id, i.quantity, i.created_at,
+                   s.name AS store, s.color AS store_color,
+                   c.name AS category, c.color AS category_color
             FROM grocery_items AS i
             LEFT JOIN stores AS s ON s.id = i.store_id
+            LEFT JOIN categories AS c ON c.id = i.category_id
             {where}
             ORDER BY i.name COLLATE NOCASE""",
         parameters,
@@ -263,17 +368,19 @@ def item_names() -> list[str]:
 
 def get_item(item_id: int) -> dict | None:
     row = database.get_connection().execute(
-        """SELECT i.id, i.name, i.store_id, i.quantity, i.created_at,
-                  s.name AS store
+        """SELECT i.id, i.name, i.store_id, i.category_id, i.quantity, i.created_at,
+                  s.name AS store, s.color AS store_color,
+                  c.name AS category, c.color AS category_color
            FROM grocery_items AS i
            LEFT JOIN stores AS s ON s.id = i.store_id
+           LEFT JOIN categories AS c ON c.id = i.category_id
            WHERE i.id = ?""",
         (item_id,),
     ).fetchone()
     return _item_from_row(row, item_minimum()) if row else None
 
 
-def _validated_item_values(name: str, store_id, quantity) -> tuple[str, int, int]:
+def _validated_item_values(name: str, store_id, quantity, category_id=None) -> tuple[str, int, int, int]:
     clean_name = " ".join((name or "").split())
     if not clean_name:
         raise ItemValidationError("Enter an item name.")
@@ -293,32 +400,52 @@ def _validated_item_values(name: str, store_id, quantity) -> tuple[str, int, int
         raise ItemValidationError("Quantity must be a whole number.") from error
     if clean_quantity < 0:
         raise ItemValidationError("Quantity cannot be negative.")
-    return clean_name, clean_store_id, clean_quantity
+    if category_id in (None, ""):
+        clean_category_id = next(
+            category["id"] for category in categories() if category["name"].lower() == "misc"
+        )
+    else:
+        try:
+            clean_category_id = int(category_id)
+        except (TypeError, ValueError) as error:
+            raise ItemValidationError("Choose a valid category.") from error
+        if not get_category(clean_category_id):
+            raise ItemValidationError("Choose a valid category.")
+    return clean_name, clean_store_id, clean_quantity, clean_category_id
 
 
-def create_item(name: str, store_id, quantity) -> dict:
-    clean_name, clean_store_id, clean_quantity = _validated_item_values(
-        name, store_id, quantity
+def create_item(name: str, store_id, quantity, category_id=None) -> dict:
+    clean_name, clean_store_id, clean_quantity, clean_category_id = _validated_item_values(
+        name, store_id, quantity, category_id
     )
     connection = database.get_connection()
+    duplicate = connection.execute(
+        """SELECT 1 FROM grocery_items
+           WHERE name = ? COLLATE NOCASE AND store_id = ?""",
+        (clean_name, clean_store_id),
+    ).fetchone()
+    if duplicate:
+        raise ItemValidationError(
+            "An item with this name and store already is in the pantry inventory."
+        )
     cursor = connection.execute(
-        "INSERT INTO grocery_items (name, store_id, quantity) VALUES (?, ?, ?)",
-        (clean_name, clean_store_id, clean_quantity),
+        "INSERT INTO grocery_items (name, store_id, quantity, category_id) VALUES (?, ?, ?, ?)",
+        (clean_name, clean_store_id, clean_quantity, clean_category_id),
     )
     connection.commit()
     return get_item(cursor.lastrowid)
 
 
-def update_item(item_id: int, name: str, store_id, quantity) -> dict | None:
+def update_item(item_id: int, name: str, store_id, quantity, category_id=None) -> dict | None:
     if not get_item(item_id):
         return None
-    clean_name, clean_store_id, clean_quantity = _validated_item_values(
-        name, store_id, quantity
+    clean_name, clean_store_id, clean_quantity, clean_category_id = _validated_item_values(
+        name, store_id, quantity, category_id
     )
     connection = database.get_connection()
     connection.execute(
-        "UPDATE grocery_items SET name = ?, store_id = ?, quantity = ? WHERE id = ?",
-        (clean_name, clean_store_id, clean_quantity, item_id),
+        "UPDATE grocery_items SET name = ?, store_id = ?, quantity = ?, category_id = ? WHERE id = ?",
+        (clean_name, clean_store_id, clean_quantity, clean_category_id, item_id),
     )
     connection.commit()
     return get_item(item_id)
@@ -384,28 +511,58 @@ def dashboard_data(search: str = "", store_id: int | None = None) -> dict:
     }
 
 
-def grocery_lists(include_low: bool = False) -> list[dict]:
-    """Return automatically generated restock lists grouped by store.
+def grocery_lists(
+    include_low: bool = False,
+    sort_first: str = "store",
+    store_id: int | None = None,
+) -> list[dict]:
+    """Return restock items grouped by store/category in the chosen order."""
+    sort_first = "category" if sort_first == "category" else "store"
+    restock_items = [
+        item
+        for item in inventory_items(store_id=store_id)
+        if item["status"][1] == "out"
+        or (include_low and item["status"][1] == "low")
+    ]
+    primary_key, secondary_key = (
+        ("store", "category") if sort_first == "store" else ("category", "store")
+    )
+    primary_groups: dict[str, dict] = {}
+    for item in restock_items:
+        primary_name = item[primary_key]
+        secondary_name = item[secondary_key]
+        primary = primary_groups.setdefault(
+            primary_name,
+            {
+                "id": item[f"{primary_key}_id"],
+                "name": primary_name,
+                "color": item.get(f"{primary_key}_color") or "#2d805f",
+                "count": 0,
+                "groups": {},
+            },
+        )
+        secondary = primary["groups"].setdefault(
+            secondary_name,
+            {
+                "name": secondary_name,
+                "color": item.get(f"{secondary_key}_color") or "#64748b",
+                "items": [],
+            },
+        )
+        listed_item = {"name": item["name"], "quantity": item["quantity"]}
+        secondary["items"].append(listed_item)
+        primary["count"] += 1
 
-    Out-of-stock items are always included. Low-stock items are opt-in so the
-    same function can drive both the page and its PDF downloads.
-    """
     lists = []
-    for store in stores():
-        items = [
-            {"name": item["name"], "quantity": item["quantity"]}
-            for item in inventory_items(store_id=store["id"])
-            if item["status"][1] == "out"
-            or (include_low and item["status"][1] == "low")
+    for primary in sorted(primary_groups.values(), key=lambda group: group["name"].lower()):
+        primary["groups"] = sorted(
+            primary["groups"].values(), key=lambda group: group["name"].lower()
+        )
+        for group in primary["groups"]:
+            group["items"].sort(key=lambda item: item["name"].lower())
+        primary["items"] = [
+            item for group in primary["groups"] for item in group["items"]
         ]
-        if items:
-            lists.append(
-                {
-                    "id": store["id"],
-                    "name": store["name"],
-                    "color": store["color"],
-                    "count": len(items),
-                    "items": items,
-                }
-            )
+        primary["sort_first"] = sort_first
+        lists.append(primary)
     return lists

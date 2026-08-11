@@ -14,6 +14,7 @@ def client(tmp_path):
     ("/inventory", "Inventory"),
     ("/grocery-lists", "Grocery lists"),
     ("/stores", "Stores"),
+    ("/categories", "Categories"),
     ("/settings", "Settings"),
 ])
 def test_pages_render(client, path, heading):
@@ -141,6 +142,7 @@ def test_add_item_persists_and_uses_item_minimum_status(client):
     assert b"Fresh Market" in response.data
     assert b"In Stock" in response.data
     assert b'data-quantity="2"' in response.data
+    assert b">misc</span>" in response.data
 
     out_item = client.post(
         "/items",
@@ -148,6 +150,101 @@ def test_add_item_persists_and_uses_item_minimum_status(client):
         follow_redirects=True,
     )
     assert b"Out" in out_item.data
+
+
+def test_add_item_json_response_supports_quick_entry(client):
+    modal = client.get("/inventory").data
+    assert b"data-add-item-form" in modal
+    assert b"data-add-item-notification" in modal
+    assert b"data-done-adding" in modal
+    javascript = client.get("/static/js/app.js").data
+    assert b"refreshInventory" in javascript
+    assert b"BroadcastChannel('pantrypilot-inventory')" in javascript
+
+    response = client.post(
+        "/items",
+        data={"name": "Yogurt", "store_id": "2", "quantity": "2"},
+        headers={"Accept": "application/json"},
+    )
+
+    assert response.status_code == 201
+    assert response.json == {
+        "ok": True,
+        "message": "Yogurt was added to the pantry.",
+    }
+    assert b"Yogurt" in client.get("/inventory").data
+
+
+def test_add_item_rejects_same_name_and_store_case_insensitively(client):
+    duplicate = client.post(
+        "/items",
+        data={"name": "  mILk  ", "store_id": "1", "quantity": "4"},
+        headers={"Accept": "application/json"},
+    )
+
+    assert duplicate.status_code == 400
+    assert duplicate.json == {
+        "ok": False,
+        "message": "An item with this name and store already is in the pantry inventory.",
+    }
+
+    # The same item name remains valid when it belongs to a different store.
+    other_store = client.post(
+        "/items",
+        data={"name": "Milk", "store_id": "2", "quantity": "1"},
+        headers={"Accept": "application/json"},
+    )
+    assert other_store.status_code == 201
+
+
+def test_categories_can_be_created_used_edited_and_deleted(client):
+    created = client.post(
+        "/categories",
+        data={"name": "  Fresh   Food ", "color": "#AABBCC"},
+        follow_redirects=True,
+    )
+    assert b"Fresh Food was added." in created.data
+    assert b'data-color="#aabbcc"' in created.data
+
+    item = client.post(
+        "/items",
+        data={"name": "Apples", "store_id": "1", "quantity": "3", "category_id": "2"},
+        follow_redirects=True,
+    )
+    assert b">Fresh Food</span>" in item.data
+    assert b'data-category-id="2"' in item.data
+
+    edited = client.post(
+        "/categories/2/edit",
+        data={"name": "Produce", "color": "#112233"},
+        follow_redirects=True,
+    )
+    assert b"Produce was updated." in edited.data
+    assert b">Produce</span>" in client.get("/inventory").data
+
+    deleted = client.post("/categories/2/delete", follow_redirects=True)
+    assert b"Produce was deleted." in deleted.data
+    inventory = client.get("/inventory").data
+    apples_row = inventory.split(b"<strong>Apples</strong>", 1)[1].split(b"</tr>", 1)[0]
+    assert b">misc</span>" in apples_row
+
+
+def test_item_rejects_unknown_category_and_misc_is_protected(client):
+    invalid = client.post(
+        "/items",
+        data={"name": "Bread", "store_id": "1", "quantity": "1", "category_id": "999"},
+        follow_redirects=True,
+    )
+    assert b"Choose a valid category." in invalid.data
+
+    renamed = client.post(
+        "/categories/1/edit",
+        data={"name": "Other", "color": "#64748b"},
+        follow_redirects=True,
+    )
+    assert b"The misc category cannot be renamed." in renamed.data
+    deleted = client.post("/categories/1/delete", follow_redirects=True)
+    assert b"The misc category cannot be deleted." in deleted.data
 
 
 @pytest.mark.parametrize(
@@ -286,7 +383,10 @@ def test_item_minimum_updates_inventory_statuses_and_lists(client):
 
 def test_grocery_lists_default_to_out_items_and_toggle_low_items(client):
     default_page = client.get("/grocery-lists")
-    assert b"List options" not in default_page.data
+    assert b"List settings" in default_page.data
+    assert b"Sort first by" in default_page.data
+    assert b'<option value="store" selected>Store</option>' in default_page.data
+    assert b'<option value="category" >Category</option>' in default_page.data
     assert b"Milk" in default_page.data
     assert b"Dish soap" in default_page.data
     assert b"Bananas" not in default_page.data
@@ -301,6 +401,31 @@ def test_grocery_lists_default_to_out_items_and_toggle_low_items(client):
     assert b"/grocery-lists/download?include_low=1" in with_low.data
 
 
+def test_grocery_lists_and_pdfs_can_sort_category_then_store(client):
+    client.post("/categories", data={"name": "Cleaning", "color": "#123456"})
+    client.post(
+        "/items/3/edit",
+        data={"name": "Dish soap", "store_id": "4", "quantity": "0", "category_id": "2"},
+    )
+
+    page = client.get("/grocery-lists?sort_first=category").data
+    assert b'<option value="category" selected>Category</option>' in page
+    assert page.index(b"Cleaning ") < page.index(b"misc ")
+    cleaning_section = page.split(b"Cleaning ", 1)[1].split(b"</section>", 1)[0]
+    assert b"Walmart" in cleaning_section
+    assert b"Dish soap" in cleaning_section
+    assert b"sort_first=category" in page
+
+    category_pdf = client.get("/grocery-lists/download?sort_first=category").data
+    assert category_pdf.index(b"(CLEANING  ") < category_pdf.index(b"(WALMART) Tj")
+    assert category_pdf.index(b"(WALMART) Tj") < category_pdf.index(b"(Dish soap")
+    assert category_pdf.index(b"(MISC  ") < category_pdf.index(b"(COSTCO) Tj")
+
+    store_pdf = client.get("/grocery-lists/download?sort_first=store").data
+    assert store_pdf.index(b"(COSTCO) Tj") < store_pdf.index(b"(MISC  ")
+    assert store_pdf.index(b"(WALMART) Tj") < store_pdf.index(b"(CLEANING  ")
+
+
 def test_store_and_all_grocery_list_pdf_downloads(client):
     store_pdf = client.get("/grocery-lists/stores/1/download")
     assert store_pdf.status_code == 200
@@ -310,26 +435,46 @@ def test_store_and_all_grocery_list_pdf_downloads(client):
     assert store_pdf.data.startswith(b"%PDF-1.4")
     assert b"Milk" in store_pdf.data
     assert b"Eggs" not in store_pdf.data
-    assert b"54 677 10 10 re S" in store_pdf.data
-    assert b"/F1 12 Tf 1 0 0 1 70 679 Tm (Milk    Qty 0) Tj" in store_pdf.data
+    assert b"34 547 10 10 re S" in store_pdf.data
+    assert b"(Milk \\(Qty: 0\\)) Tj" in store_pdf.data
     assert b"[ ]" not in store_pdf.data
+    assert b"(PantryPilot) Tj" in store_pdf.data
+    assert b"(Shop smart. Save time. Waste less.) Tj" in store_pdf.data
 
     all_pdf = client.get("/grocery-lists/download?include_low=1")
     assert all_pdf.status_code == 200
     assert all_pdf.data.startswith(b"%PDF-1.4")
-    assert b"Costco" in all_pdf.data
-    assert b"Fresh Market" in all_pdf.data
-    assert b"Walmart" in all_pdf.data
+    assert b"COSTCO" in all_pdf.data
+    assert b"FRESH MARKET" in all_pdf.data
+    assert b"WALMART" in all_pdf.data
     assert b"Bananas" in all_pdf.data
     assert b"Brown rice" in all_pdf.data
-    assert all_pdf.data.index(b"Costco") < all_pdf.data.index(b"Fresh Market")
-    # Store headings use their configured colors in the combined PDF.
-    assert b"0.145 0.388 0.922 rg" in all_pdf.data
-    assert b"0.086 0.639 0.290 rg" in all_pdf.data
+    assert all_pdf.data.index(b"COSTCO") < all_pdf.data.index(b"FRESH MARKET")
+    # The printable design is monochrome regardless of configured UI colors.
+    assert b"0.145 0.388 0.922 rg" not in all_pdf.data
+    assert b"0.086 0.639 0.290 rg" not in all_pdf.data
 
 
 def test_store_pdf_for_missing_store_is_not_found(client):
     assert client.get("/grocery-lists/stores/999/download").status_code == 404
+
+
+def test_long_pdf_lists_repeat_context_across_pages(client):
+    for index in range(40):
+        client.post(
+            "/items",
+            data={
+                "name": f"Long pantry item number {index:02d}",
+                "store_id": "1",
+                "quantity": "0",
+            },
+        )
+
+    pdf = client.get("/grocery-lists/stores/1/download").data
+    assert b"/Count 2" in pdf or b"/Count 3" in pdf
+    assert b"(Costco Grocery List \xb7 Continued)" in pdf
+    assert b"(MISC \\(continued\\))" in pdf
+    assert pdf.count(b"(Shop smart. Save time. Waste less.)") >= 2
 
 
 def test_pdf_font_size_setting_updates_all_exported_pdfs(client):
