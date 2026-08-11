@@ -1,7 +1,7 @@
 {% extends 'base.html' %}{% block title %}Settings · PantryPilot{% endblock %}
 {% block content %}
 <header class="page-header"><div><h1>Settings</h1><p>Customize PantryPilot for your household.</p></div></header>
-<article class="card settings-card">
+<section class="settings-list"><article class="card settings-card">
   <div>
     <h2>Item Minimum</h2>
     <p>Items at or below this quantity are marked Low. Items at zero remain Out.</p>
@@ -11,4 +11,14 @@
     <div class="setting-control"><input id="item-minimum" name="item_minimum" type="number" min="0" step="1" value="{{ item_minimum }}" required><button class="button primary" type="submit">Save</button></div>
   </form>
 </article>
+<article class="card settings-card">
+  <div>
+    <h2>Font size for exported PDFs</h2>
+    <p>Increase the text size used in every store and combined grocery list PDF.</p>
+  </div>
+  <form method="post" action="{{ url_for('settings') }}">
+    <label for="pdf-font-size">Font size</label>
+    <div class="setting-control"><input id="pdf-font-size" name="pdf_font_size" type="number" min="8" max="32" step="1" value="{{ pdf_font_size }}" required><button class="button primary" type="submit">Save</button></div>
+  </form>
+</article></section>
 {% endblock %}

@@ -278,9 +278,86 @@ def test_item_minimum_updates_inventory_statuses_and_lists(client):
     dashboard = client.get("/").data
     assert b"Low stock" in dashboard
     grocery_lists = client.get("/grocery-lists").data
+    assert b"Minimum item" not in grocery_lists
+    grocery_lists = client.get("/grocery-lists?include_low=1").data
     assert b"Minimum item" in grocery_lists
     assert b"Above item" not in grocery_lists
-    assert b"Quantity \xe2\x89\xa4 2" in grocery_lists
+
+
+def test_grocery_lists_default_to_out_items_and_toggle_low_items(client):
+    default_page = client.get("/grocery-lists")
+    assert b"List options" not in default_page.data
+    assert b"Milk" in default_page.data
+    assert b"Dish soap" in default_page.data
+    assert b"Bananas" not in default_page.data
+    assert b'name="include_low" value="1"  onchange' in default_page.data
+    store_lists = default_page.data.split(b'<section class="lists-grid">', 1)[1]
+    assert b'<input type="checkbox">' not in store_lists
+
+    with_low = client.get("/grocery-lists?include_low=1")
+    assert b"Milk" in with_low.data
+    assert b"Bananas" in with_low.data
+    assert b'name="include_low" value="1" checked' in with_low.data
+    assert b"/grocery-lists/download?include_low=1" in with_low.data
+
+
+def test_store_and_all_grocery_list_pdf_downloads(client):
+    store_pdf = client.get("/grocery-lists/stores/1/download")
+    assert store_pdf.status_code == 200
+    assert store_pdf.mimetype == "application/pdf"
+    assert "attachment;" in store_pdf.headers["Content-Disposition"]
+    assert "costco-grocery-list.pdf" in store_pdf.headers["Content-Disposition"]
+    assert store_pdf.data.startswith(b"%PDF-1.4")
+    assert b"Milk" in store_pdf.data
+    assert b"Eggs" not in store_pdf.data
+    assert b"54 677 10 10 re S" in store_pdf.data
+    assert b"/F1 12 Tf 1 0 0 1 70 679 Tm (Milk    Qty 0) Tj" in store_pdf.data
+    assert b"[ ]" not in store_pdf.data
+
+    all_pdf = client.get("/grocery-lists/download?include_low=1")
+    assert all_pdf.status_code == 200
+    assert all_pdf.data.startswith(b"%PDF-1.4")
+    assert b"Costco" in all_pdf.data
+    assert b"Fresh Market" in all_pdf.data
+    assert b"Walmart" in all_pdf.data
+    assert b"Bananas" in all_pdf.data
+    assert b"Brown rice" in all_pdf.data
+    assert all_pdf.data.index(b"Costco") < all_pdf.data.index(b"Fresh Market")
+    # Store headings use their configured colors in the combined PDF.
+    assert b"0.145 0.388 0.922 rg" in all_pdf.data
+    assert b"0.086 0.639 0.290 rg" in all_pdf.data
+
+
+def test_store_pdf_for_missing_store_is_not_found(client):
+    assert client.get("/grocery-lists/stores/999/download").status_code == 404
+
+
+def test_pdf_font_size_setting_updates_all_exported_pdfs(client):
+    settings = client.get("/settings")
+    assert b"Font size for exported PDFs" in settings.data
+    assert b'name="pdf_font_size"' in settings.data
+    assert b'value="12"' in settings.data
+
+    updated = client.post(
+        "/settings", data={"pdf_font_size": "20"}, follow_redirects=True
+    )
+    assert b"PDF font size was updated to 20." in updated.data
+    assert b'name="pdf_font_size"' in updated.data
+    assert b'value="20"' in updated.data
+
+    store_pdf = client.get("/grocery-lists/stores/1/download")
+    all_pdf = client.get("/grocery-lists/download")
+    assert b"/F1 20 Tf" in store_pdf.data
+    assert b"/F1 20 Tf" in all_pdf.data
+
+
+@pytest.mark.parametrize("value", ["", "7", "33", "12.5"])
+def test_pdf_font_size_rejects_invalid_values(client, value):
+    response = client.post(
+        "/settings", data={"pdf_font_size": value}, follow_redirects=True
+    )
+    assert b"PDF font size" in response.data
+    assert b'value="12"' in response.data
 
 
 @pytest.mark.parametrize(

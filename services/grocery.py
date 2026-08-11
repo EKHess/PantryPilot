@@ -64,6 +64,32 @@ def update_item_minimum(value) -> int:
     return minimum
 
 
+def pdf_font_size() -> int:
+    row = database.get_connection().execute(
+        "SELECT value FROM app_metadata WHERE key = 'pdf_font_size'"
+    ).fetchone()
+    return int(row["value"]) if row else int(current_app.config["PDF_FONT_SIZE"])
+
+
+def update_pdf_font_size(value) -> int:
+    try:
+        font_size = int(value)
+    except (TypeError, ValueError) as error:
+        raise SettingsValidationError(
+            "PDF font size must be a whole number."
+        ) from error
+    if not 8 <= font_size <= 32:
+        raise SettingsValidationError("PDF font size must be between 8 and 32.")
+    connection = database.get_connection()
+    connection.execute(
+        """INSERT INTO app_metadata (key, value) VALUES ('pdf_font_size', ?)
+           ON CONFLICT(key) DO UPDATE SET value = excluded.value""",
+        (str(font_size),),
+    )
+    connection.commit()
+    return font_size
+
+
 def seed_stores() -> None:
     """Populate stores once, without restoring stores a user later deletes."""
     connection = database.get_connection()
@@ -358,14 +384,28 @@ def dashboard_data(search: str = "", store_id: int | None = None) -> dict:
     }
 
 
-def grocery_lists() -> list[dict]:
+def grocery_lists(include_low: bool = False) -> list[dict]:
+    """Return automatically generated restock lists grouped by store.
+
+    Out-of-stock items are always included. Low-stock items are opt-in so the
+    same function can drive both the page and its PDF downloads.
+    """
     lists = []
     for store in stores():
         items = [
-            (item["name"], item["quantity"])
+            {"name": item["name"], "quantity": item["quantity"]}
             for item in inventory_items(store_id=store["id"])
-            if item["status"][1] in {"out", "low"}
+            if item["status"][1] == "out"
+            or (include_low and item["status"][1] == "low")
         ]
         if items:
-            lists.append({"name": store["name"], "count": len(items), "items": items})
+            lists.append(
+                {
+                    "id": store["id"],
+                    "name": store["name"],
+                    "color": store["color"],
+                    "count": len(items),
+                    "items": items,
+                }
+            )
     return lists

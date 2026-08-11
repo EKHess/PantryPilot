@@ -1,11 +1,24 @@
 """PantryPilot Flask application entrypoint."""
 
-from flask import Flask, abort, flash, redirect, render_template, request, url_for
 import argparse
+from io import BytesIO
+import re
+
+from flask import (
+    Flask,
+    abort,
+    flash,
+    redirect,
+    render_template,
+    request,
+    send_file,
+    url_for,
+)
 
 import database
 from config import Config
 from services import grocery
+from services.pdf import grocery_list_pdf
 
 
 def create_app(test_config=None) -> Flask:
@@ -112,13 +125,56 @@ def create_app(test_config=None) -> Flask:
 
     @app.get("/grocery-lists")
     def grocery_lists():
-        lists = grocery.grocery_lists()
+        include_low = request.args.get("include_low") == "1"
+        lists = grocery.grocery_lists(include_low=include_low)
         return render_template(
             "grocery_lists.html",
             active="lists",
             lists=lists,
             list_item_count=sum(grocery_list["count"] for grocery_list in lists),
-            item_minimum=grocery.item_minimum(),
+            include_low=include_low,
+        )
+
+    def pdf_download(lists, filename, title):
+        return send_file(
+            BytesIO(grocery_list_pdf(lists, title, grocery.pdf_font_size())),
+            mimetype="application/pdf",
+            as_attachment=True,
+            download_name=filename,
+        )
+
+    @app.get("/grocery-lists/download")
+    def download_all_grocery_lists():
+        lists = grocery.grocery_lists(request.args.get("include_low") == "1")
+        return pdf_download(lists, "pantrypilot-grocery-lists.pdf", "Grocery Lists")
+
+    @app.get("/grocery-lists/stores/<int:store_id>/download")
+    def download_store_grocery_list(store_id):
+        store = grocery.get_store(store_id)
+        if store is None:
+            abort(404)
+        lists = [
+            grocery_list
+            for grocery_list in grocery.grocery_lists(
+                request.args.get("include_low") == "1"
+            )
+            if grocery_list["id"] == store_id
+        ]
+        if not lists:
+            lists = [
+                {
+                    "id": store_id,
+                    "name": store["name"],
+                    "color": store["color"],
+                    "items": [],
+                    "count": 0,
+                }
+            ]
+        filename = re.sub(r"[^a-z0-9]+", "-", store["name"].lower()).strip("-")
+        return pdf_download(
+            lists,
+            f"{filename}-grocery-list.pdf",
+            f"{store['name']} Grocery List",
         )
 
     @app.route("/stores", methods=["GET", "POST"])
@@ -161,16 +217,26 @@ def create_app(test_config=None) -> Flask:
     def settings():
         if request.method == "POST":
             try:
-                minimum = grocery.update_item_minimum(
-                    request.form.get("item_minimum")
-                )
+                if "pdf_font_size" in request.form:
+                    font_size = grocery.update_pdf_font_size(
+                        request.form.get("pdf_font_size")
+                    )
+                    message = f"PDF font size was updated to {font_size}."
+                else:
+                    minimum = grocery.update_item_minimum(
+                        request.form.get("item_minimum")
+                    )
+                    message = f"Item Minimum was updated to {minimum}."
             except grocery.SettingsValidationError as error:
                 flash(str(error), "error")
             else:
-                flash(f"Item Minimum was updated to {minimum}.", "success")
+                flash(message, "success")
             return redirect(url_for("settings"))
         return render_template(
-            "settings.html", active="settings", item_minimum=grocery.item_minimum()
+            "settings.html",
+            active="settings",
+            item_minimum=grocery.item_minimum(),
+            pdf_font_size=grocery.pdf_font_size(),
         )
 
     return app
