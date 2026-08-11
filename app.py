@@ -166,7 +166,9 @@ def create_app(test_config=None) -> Flask:
             request.args.get("include_low") == "1",
             request.args.get("sort_first", "store"),
         )
-        return pdf_download(lists, "pantrypilot-grocery-lists.pdf", "Grocery Lists")
+        return pdf_download(
+            lists, "pantrypilot-grocery-lists.pdf", "Compiled Grocery List"
+        )
 
     @app.get("/grocery-lists/stores/<int:store_id>/download")
     def download_store_grocery_list(store_id):

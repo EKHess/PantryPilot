@@ -417,13 +417,13 @@ def test_grocery_lists_and_pdfs_can_sort_category_then_store(client):
     assert b"sort_first=category" in page
 
     category_pdf = client.get("/grocery-lists/download?sort_first=category").data
-    assert category_pdf.index(b"(Cleaning) Tj") < category_pdf.index(b"(Walmart) Tj")
-    assert category_pdf.index(b"(Walmart) Tj") < category_pdf.index(b"(Dish soap")
-    assert category_pdf.index(b"(misc) Tj") < category_pdf.index(b"(Costco) Tj")
+    assert category_pdf.index(b"(CLEANING  ") < category_pdf.index(b"(WALMART) Tj")
+    assert category_pdf.index(b"(WALMART) Tj") < category_pdf.index(b"(Dish soap")
+    assert category_pdf.index(b"(MISC  ") < category_pdf.index(b"(COSTCO) Tj")
 
     store_pdf = client.get("/grocery-lists/download?sort_first=store").data
-    assert store_pdf.index(b"(Costco) Tj") < store_pdf.index(b"(misc) Tj")
-    assert store_pdf.index(b"(Walmart) Tj") < store_pdf.index(b"(Cleaning) Tj")
+    assert store_pdf.index(b"(COSTCO) Tj") < store_pdf.index(b"(MISC  ")
+    assert store_pdf.index(b"(WALMART) Tj") < store_pdf.index(b"(CLEANING  ")
 
 
 def test_store_and_all_grocery_list_pdf_downloads(client):
@@ -435,26 +435,46 @@ def test_store_and_all_grocery_list_pdf_downloads(client):
     assert store_pdf.data.startswith(b"%PDF-1.4")
     assert b"Milk" in store_pdf.data
     assert b"Eggs" not in store_pdf.data
-    assert b"54 655 10 10 re S" in store_pdf.data
-    assert b"/F1 12 Tf 1 0 0 1 70 657 Tm (Milk    Qty 0) Tj" in store_pdf.data
+    assert b"34 547 10 10 re S" in store_pdf.data
+    assert b"(Milk \\(Qty: 0\\)) Tj" in store_pdf.data
     assert b"[ ]" not in store_pdf.data
+    assert b"(PantryPilot) Tj" in store_pdf.data
+    assert b"(Shop smart. Save time. Waste less.) Tj" in store_pdf.data
 
     all_pdf = client.get("/grocery-lists/download?include_low=1")
     assert all_pdf.status_code == 200
     assert all_pdf.data.startswith(b"%PDF-1.4")
-    assert b"Costco" in all_pdf.data
-    assert b"Fresh Market" in all_pdf.data
-    assert b"Walmart" in all_pdf.data
+    assert b"COSTCO" in all_pdf.data
+    assert b"FRESH MARKET" in all_pdf.data
+    assert b"WALMART" in all_pdf.data
     assert b"Bananas" in all_pdf.data
     assert b"Brown rice" in all_pdf.data
-    assert all_pdf.data.index(b"Costco") < all_pdf.data.index(b"Fresh Market")
-    # Store headings use their configured colors in the combined PDF.
-    assert b"0.145 0.388 0.922 rg" in all_pdf.data
-    assert b"0.086 0.639 0.290 rg" in all_pdf.data
+    assert all_pdf.data.index(b"COSTCO") < all_pdf.data.index(b"FRESH MARKET")
+    # The printable design is monochrome regardless of configured UI colors.
+    assert b"0.145 0.388 0.922 rg" not in all_pdf.data
+    assert b"0.086 0.639 0.290 rg" not in all_pdf.data
 
 
 def test_store_pdf_for_missing_store_is_not_found(client):
     assert client.get("/grocery-lists/stores/999/download").status_code == 404
+
+
+def test_long_pdf_lists_repeat_context_across_pages(client):
+    for index in range(40):
+        client.post(
+            "/items",
+            data={
+                "name": f"Long pantry item number {index:02d}",
+                "store_id": "1",
+                "quantity": "0",
+            },
+        )
+
+    pdf = client.get("/grocery-lists/stores/1/download").data
+    assert b"/Count 2" in pdf or b"/Count 3" in pdf
+    assert b"(Costco Grocery List \xb7 Continued)" in pdf
+    assert b"(MISC \\(continued\\))" in pdf
+    assert pdf.count(b"(Shop smart. Save time. Waste less.)") >= 2
 
 
 def test_pdf_font_size_setting_updates_all_exported_pdfs(client):

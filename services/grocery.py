@@ -563,5 +563,6 @@ def grocery_lists(
         primary["items"] = [
             item for group in primary["groups"] for item in group["items"]
         ]
+        primary["sort_first"] = sort_first
         lists.append(primary)
     return lists
