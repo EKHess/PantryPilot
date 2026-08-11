@@ -23,6 +23,21 @@ document.querySelectorAll('[data-open-modal]').forEach((button) => button.addEve
 
 const addItemForm = document.querySelector('[data-add-item-form]');
 const addItemNotification = document.querySelector('[data-add-item-notification]');
+const inventoryUpdates = 'BroadcastChannel' in window ? new BroadcastChannel('pantrypilot-inventory') : null;
+
+async function refreshInventory() {
+  const inventoryPanel = document.querySelector('.inventory-panel');
+  if (!inventoryPanel) return;
+  const response = await fetch(`${window.location.pathname}${window.location.search}`, {
+    headers: { 'X-Inventory-Refresh': '1' },
+  });
+  if (!response.ok) return;
+  const page = new DOMParser().parseFromString(await response.text(), 'text/html');
+  const updatedPanel = page.querySelector('.inventory-panel');
+  if (updatedPanel) inventoryPanel.replaceWith(updatedPanel);
+}
+
+inventoryUpdates?.addEventListener('message', refreshInventory);
 
 addItemForm?.addEventListener('submit', async (event) => {
   event.preventDefault();
@@ -40,7 +55,16 @@ addItemForm?.addEventListener('submit', async (event) => {
     addItemNotification.textContent = result.message;
     addItemNotification.className = `modal-notification ${response.ok ? 'success' : 'error'}`;
     addItemNotification.hidden = false;
-    if (response.ok) addItemForm.querySelector('[name="name"]').value = '';
+    if (response.ok) {
+      addItemForm.querySelector('[name="name"]').value = '';
+      refreshInventory();
+      inventoryUpdates?.postMessage('item-added');
+      try {
+        localStorage.setItem('pantrypilot-inventory-updated', String(Date.now()));
+      } catch (_storageError) {
+        // BroadcastChannel still keeps supported tabs synchronized.
+      }
+    }
   } catch (_error) {
     addItemNotification.textContent = 'The item could not be added. Please try again.';
     addItemNotification.className = 'modal-notification error';
@@ -52,7 +76,11 @@ addItemForm?.addEventListener('submit', async (event) => {
 });
 
 document.querySelector('[data-done-adding]')?.addEventListener('click', () => {
-  window.location.reload();
+  closeModal(document.querySelector('#add-modal'));
+});
+
+window.addEventListener('storage', (event) => {
+  if (event.key === 'pantrypilot-inventory-updated') refreshInventory();
 });
 
 document.querySelectorAll('[data-open-store-modal]').forEach((button) => button.addEventListener('click', () => {
@@ -98,7 +126,9 @@ document.querySelectorAll('[data-delete-store]').forEach((button) => button.addE
   openModal(modal);
 }));
 
-document.querySelectorAll('[data-edit-item]').forEach((button) => button.addEventListener('click', () => {
+document.addEventListener('click', (event) => {
+  const button = event.target.closest('[data-edit-item]');
+  if (!button) return;
   const modal = document.querySelector('#edit-item-modal');
   const form = modal.querySelector('form');
   form.action = button.dataset.action;
@@ -108,16 +138,18 @@ document.querySelectorAll('[data-edit-item]').forEach((button) => button.addEven
   form.querySelector('[name="quantity"]').value = button.dataset.quantity;
   form.querySelector('[name="return_to"]').value = button.dataset.returnTo;
   openModal(modal);
-}));
+});
 
-document.querySelectorAll('[data-delete-item]').forEach((button) => button.addEventListener('click', () => {
+document.addEventListener('click', (event) => {
+  const button = event.target.closest('[data-delete-item]');
+  if (!button) return;
   const modal = document.querySelector('#delete-item-modal');
   const form = modal.querySelector('form');
   form.action = button.dataset.action;
   form.querySelector('[name="return_to"]').value = button.dataset.returnTo;
   modal.querySelector('[data-delete-item-name]').textContent = button.dataset.name;
   openModal(modal);
-}));
+});
 
 document.querySelectorAll('.modal').forEach((modal) => {
   modal.querySelectorAll('.modal-close, [data-close-modal]').forEach((button) => {

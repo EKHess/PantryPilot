@@ -1,6 +1,15 @@
 {% extends 'base.html' %}{% block title %}Grocery lists · PantryPilot{% endblock %}
 {% block content %}
-<header class="page-header"><div><h1>Grocery lists</h1><p>Out-of-stock items, automatically organized by store.</p></div><div class="actions"><button class="button" type="button" onclick="window.print()">Print preview</button><a class="button primary link-button" href="{{ url_for('download_all_grocery_lists', include_low='1' if include_low else none) }}">Download all as PDF</a></div></header>
-<form class="low-stock-toggle" method="get"><label class="switch-control"><input type="checkbox" name="include_low" value="1" {% if include_low %}checked{% endif %} onchange="this.form.submit()"><span class="switch" aria-hidden="true"></span><span>Include items that are low</span></label></form>
-<section class="lists-grid"><article class="card list-panel"><h2>{{ list_item_count }} items across {{ lists|length }} stores</h2>{% for list in lists %}<section class="store-list"><header><h3>{{ list.name }} · {{ list.count }} items</h3><a class="button link-button" href="{{ url_for('download_store_grocery_list', store_id=list.id, include_low='1' if include_low else none) }}">Download store PDF</a></header>{% for item in list['items'] %}<div class="grocery-list-item"><strong>{{ item.name }}</strong><small>Qty {{ item.quantity }}</small></div>{% endfor %}</section>{% else %}<div class="empty-state"><span>✓</span><h3>Your pantry is stocked</h3><p>No items need to be added to a grocery list.</p></div>{% endfor %}</article></section>
+<header class="page-header"><div><h1>Grocery lists</h1><p>Items that need restocking, organized your way.</p></div><div class="actions"><button class="button" type="button" onclick="window.print()">Print preview</button><a class="button primary link-button" href="{{ url_for('download_all_grocery_lists', include_low='1' if include_low else none, sort_first=sort_first) }}">Download all as PDF</a></div></header>
+<section class="lists-grid">
+  <article class="card list-panel"><h2>{{ list_item_count }} items across {{ lists|length }} {{ 'categories' if sort_first == 'category' else 'stores' }}</h2>
+    {% for list in lists %}<section class="store-list"><header><h3>{{ list.name }} · {{ list.count }} items</h3>{% if sort_first == 'store' and list.id %}<a class="button link-button" href="{{ url_for('download_store_grocery_list', store_id=list.id, include_low='1' if include_low else none, sort_first=sort_first) }}">Download store PDF</a>{% endif %}</header>
+      {% for group in list.groups %}<div class="grocery-subgroup"><h4>{{ group.name }}</h4>{% for item in group['items'] %}<div class="grocery-list-item"><strong>{{ item.name }}</strong><small>Qty {{ item.quantity }}</small></div>{% endfor %}</div>{% endfor %}
+    </section>{% else %}<div class="empty-state"><span>✓</span><h3>Your pantry is stocked</h3><p>No items need to be added to a grocery list.</p></div>{% endfor %}
+  </article>
+  <aside class="card options grocery-options"><h2>List settings</h2><form method="get">
+    <label for="sort-first">Sort first by<select id="sort-first" name="sort_first" onchange="this.form.submit()"><option value="store" {{ 'selected' if sort_first == 'store' }}>Store</option><option value="category" {{ 'selected' if sort_first == 'category' }}>Category</option></select></label>
+    <label class="switch-control"><input type="checkbox" name="include_low" value="1" {% if include_low %}checked{% endif %} onchange="this.form.submit()"><span class="switch" aria-hidden="true"></span><span>Include items that are low</span></label>
+  </form><p>PDF downloads use the same primary sort and group items by the other setting.</p></aside>
+</section>
 {% endblock %}

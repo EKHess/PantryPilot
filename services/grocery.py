@@ -347,7 +347,8 @@ def inventory_items(
     where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
     rows = database.get_connection().execute(
         f"""SELECT i.id, i.name, i.store_id, i.category_id, i.quantity, i.created_at,
-                   s.name AS store, c.name AS category, c.color AS category_color
+                   s.name AS store, s.color AS store_color,
+                   c.name AS category, c.color AS category_color
             FROM grocery_items AS i
             LEFT JOIN stores AS s ON s.id = i.store_id
             LEFT JOIN categories AS c ON c.id = i.category_id
@@ -368,7 +369,8 @@ def item_names() -> list[str]:
 def get_item(item_id: int) -> dict | None:
     row = database.get_connection().execute(
         """SELECT i.id, i.name, i.store_id, i.category_id, i.quantity, i.created_at,
-                  s.name AS store, c.name AS category, c.color AS category_color
+                  s.name AS store, s.color AS store_color,
+                  c.name AS category, c.color AS category_color
            FROM grocery_items AS i
            LEFT JOIN stores AS s ON s.id = i.store_id
            LEFT JOIN categories AS c ON c.id = i.category_id
@@ -509,28 +511,57 @@ def dashboard_data(search: str = "", store_id: int | None = None) -> dict:
     }
 
 
-def grocery_lists(include_low: bool = False) -> list[dict]:
-    """Return automatically generated restock lists grouped by store.
+def grocery_lists(
+    include_low: bool = False,
+    sort_first: str = "store",
+    store_id: int | None = None,
+) -> list[dict]:
+    """Return restock items grouped by store/category in the chosen order."""
+    sort_first = "category" if sort_first == "category" else "store"
+    restock_items = [
+        item
+        for item in inventory_items(store_id=store_id)
+        if item["status"][1] == "out"
+        or (include_low and item["status"][1] == "low")
+    ]
+    primary_key, secondary_key = (
+        ("store", "category") if sort_first == "store" else ("category", "store")
+    )
+    primary_groups: dict[str, dict] = {}
+    for item in restock_items:
+        primary_name = item[primary_key]
+        secondary_name = item[secondary_key]
+        primary = primary_groups.setdefault(
+            primary_name,
+            {
+                "id": item[f"{primary_key}_id"],
+                "name": primary_name,
+                "color": item.get(f"{primary_key}_color") or "#2d805f",
+                "count": 0,
+                "groups": {},
+            },
+        )
+        secondary = primary["groups"].setdefault(
+            secondary_name,
+            {
+                "name": secondary_name,
+                "color": item.get(f"{secondary_key}_color") or "#64748b",
+                "items": [],
+            },
+        )
+        listed_item = {"name": item["name"], "quantity": item["quantity"]}
+        secondary["items"].append(listed_item)
+        primary["count"] += 1
 
-    Out-of-stock items are always included. Low-stock items are opt-in so the
-    same function can drive both the page and its PDF downloads.
-    """
     lists = []
-    for store in stores():
-        items = [
-            {"name": item["name"], "quantity": item["quantity"]}
-            for item in inventory_items(store_id=store["id"])
-            if item["status"][1] == "out"
-            or (include_low and item["status"][1] == "low")
+    for primary in sorted(primary_groups.values(), key=lambda group: group["name"].lower()):
+        primary["groups"] = sorted(
+            primary["groups"].values(), key=lambda group: group["name"].lower()
+        )
+        for group in primary["groups"]:
+            group["items"].sort(key=lambda item: item["name"].lower())
+        primary["items"] = [
+            item for group in primary["groups"] for item in group["items"]
         ]
-        if items:
-            lists.append(
-                {
-                    "id": store["id"],
-                    "name": store["name"],
-                    "color": store["color"],
-                    "count": len(items),
-                    "items": items,
-                }
-            )
+        lists.append(primary)
     return lists

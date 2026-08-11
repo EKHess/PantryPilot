@@ -139,13 +139,17 @@ def create_app(test_config=None) -> Flask:
     @app.get("/grocery-lists")
     def grocery_lists():
         include_low = request.args.get("include_low") == "1"
-        lists = grocery.grocery_lists(include_low=include_low)
+        sort_first = (
+            "category" if request.args.get("sort_first") == "category" else "store"
+        )
+        lists = grocery.grocery_lists(include_low=include_low, sort_first=sort_first)
         return render_template(
             "grocery_lists.html",
             active="lists",
             lists=lists,
             list_item_count=sum(grocery_list["count"] for grocery_list in lists),
             include_low=include_low,
+            sort_first=sort_first,
         )
 
     def pdf_download(lists, filename, title):
@@ -158,7 +162,10 @@ def create_app(test_config=None) -> Flask:
 
     @app.get("/grocery-lists/download")
     def download_all_grocery_lists():
-        lists = grocery.grocery_lists(request.args.get("include_low") == "1")
+        lists = grocery.grocery_lists(
+            request.args.get("include_low") == "1",
+            request.args.get("sort_first", "store"),
+        )
         return pdf_download(lists, "pantrypilot-grocery-lists.pdf", "Grocery Lists")
 
     @app.get("/grocery-lists/stores/<int:store_id>/download")
@@ -166,13 +173,10 @@ def create_app(test_config=None) -> Flask:
         store = grocery.get_store(store_id)
         if store is None:
             abort(404)
-        lists = [
-            grocery_list
-            for grocery_list in grocery.grocery_lists(
-                request.args.get("include_low") == "1"
-            )
-            if grocery_list["id"] == store_id
-        ]
+        sort_first = request.args.get("sort_first", "store")
+        lists = grocery.grocery_lists(
+            request.args.get("include_low") == "1", sort_first, store_id
+        )
         if not lists:
             lists = [
                 {
@@ -180,6 +184,7 @@ def create_app(test_config=None) -> Flask:
                     "name": store["name"],
                     "color": store["color"],
                     "items": [],
+                    "groups": [],
                     "count": 0,
                 }
             ]

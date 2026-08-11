@@ -157,6 +157,9 @@ def test_add_item_json_response_supports_quick_entry(client):
     assert b"data-add-item-form" in modal
     assert b"data-add-item-notification" in modal
     assert b"data-done-adding" in modal
+    javascript = client.get("/static/js/app.js").data
+    assert b"refreshInventory" in javascript
+    assert b"BroadcastChannel('pantrypilot-inventory')" in javascript
 
     response = client.post(
         "/items",
@@ -380,7 +383,10 @@ def test_item_minimum_updates_inventory_statuses_and_lists(client):
 
 def test_grocery_lists_default_to_out_items_and_toggle_low_items(client):
     default_page = client.get("/grocery-lists")
-    assert b"List options" not in default_page.data
+    assert b"List settings" in default_page.data
+    assert b"Sort first by" in default_page.data
+    assert b'<option value="store" selected>Store</option>' in default_page.data
+    assert b'<option value="category" >Category</option>' in default_page.data
     assert b"Milk" in default_page.data
     assert b"Dish soap" in default_page.data
     assert b"Bananas" not in default_page.data
@@ -395,6 +401,31 @@ def test_grocery_lists_default_to_out_items_and_toggle_low_items(client):
     assert b"/grocery-lists/download?include_low=1" in with_low.data
 
 
+def test_grocery_lists_and_pdfs_can_sort_category_then_store(client):
+    client.post("/categories", data={"name": "Cleaning", "color": "#123456"})
+    client.post(
+        "/items/3/edit",
+        data={"name": "Dish soap", "store_id": "4", "quantity": "0", "category_id": "2"},
+    )
+
+    page = client.get("/grocery-lists?sort_first=category").data
+    assert b'<option value="category" selected>Category</option>' in page
+    assert page.index(b"Cleaning ") < page.index(b"misc ")
+    cleaning_section = page.split(b"Cleaning ", 1)[1].split(b"</section>", 1)[0]
+    assert b"Walmart" in cleaning_section
+    assert b"Dish soap" in cleaning_section
+    assert b"sort_first=category" in page
+
+    category_pdf = client.get("/grocery-lists/download?sort_first=category").data
+    assert category_pdf.index(b"(Cleaning) Tj") < category_pdf.index(b"(Walmart) Tj")
+    assert category_pdf.index(b"(Walmart) Tj") < category_pdf.index(b"(Dish soap")
+    assert category_pdf.index(b"(misc) Tj") < category_pdf.index(b"(Costco) Tj")
+
+    store_pdf = client.get("/grocery-lists/download?sort_first=store").data
+    assert store_pdf.index(b"(Costco) Tj") < store_pdf.index(b"(misc) Tj")
+    assert store_pdf.index(b"(Walmart) Tj") < store_pdf.index(b"(Cleaning) Tj")
+
+
 def test_store_and_all_grocery_list_pdf_downloads(client):
     store_pdf = client.get("/grocery-lists/stores/1/download")
     assert store_pdf.status_code == 200
@@ -404,8 +435,8 @@ def test_store_and_all_grocery_list_pdf_downloads(client):
     assert store_pdf.data.startswith(b"%PDF-1.4")
     assert b"Milk" in store_pdf.data
     assert b"Eggs" not in store_pdf.data
-    assert b"54 677 10 10 re S" in store_pdf.data
-    assert b"/F1 12 Tf 1 0 0 1 70 679 Tm (Milk    Qty 0) Tj" in store_pdf.data
+    assert b"54 655 10 10 re S" in store_pdf.data
+    assert b"/F1 12 Tf 1 0 0 1 70 657 Tm (Milk    Qty 0) Tj" in store_pdf.data
     assert b"[ ]" not in store_pdf.data
 
     all_pdf = client.get("/grocery-lists/download?include_low=1")

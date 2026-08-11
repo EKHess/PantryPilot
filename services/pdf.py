@@ -50,7 +50,7 @@ def _page_stream(lines: list[tuple[str, int, bool, str, bool]]) -> bytes:
 def grocery_list_pdf(
     lists: list[dict], title: str = "Grocery Lists", font_size: int = 12
 ) -> bytes:
-    """Build a PDF with store headings and an empty checkbox for every item."""
+    """Build a PDF with nested group headings and a checkbox for every item."""
     black = "#000000"
     page_line_limit = max(4, 620 // (font_size + 8))
     pages: list[list[tuple[str, int, bool, str, bool]]] = []
@@ -77,22 +77,41 @@ def grocery_list_pdf(
             pages.append(current)
             current = [(title + " (continued)", font_size + 7, True, black, False)]
         current.append(store_heading)
-        for item in grocery_list["items"]:
+        groups = grocery_list.get("groups") or [
+            {"name": "Items", "color": black, "items": grocery_list["items"]}
+        ]
+        for group in groups:
+            group_heading = (
+                group["name"],
+                font_size + 2,
+                True,
+                group.get("color", black),
+                False,
+            )
             if len(current) >= page_line_limit:
                 pages.append(current)
                 current = [
                     (title + " (continued)", font_size + 7, True, black, False),
                     store_heading,
                 ]
-            current.append(
-                (
-                    f"{item['name']}    Qty {item['quantity']}",
-                    font_size,
-                    False,
-                    black,
-                    True,
+            current.append(group_heading)
+            for item in group["items"]:
+                if len(current) >= page_line_limit:
+                    pages.append(current)
+                    current = [
+                        (title + " (continued)", font_size + 7, True, black, False),
+                        store_heading,
+                        group_heading,
+                    ]
+                current.append(
+                    (
+                        f"{item['name']}    Qty {item['quantity']}",
+                        font_size,
+                        False,
+                        black,
+                        True,
+                    )
                 )
-            )
     pages.append(current)
 
     objects: list[bytes] = []
