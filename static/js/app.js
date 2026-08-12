@@ -137,6 +137,7 @@ document.addEventListener('click', (event) => {
   form.querySelector('[name="category_id"]').value = button.dataset.categoryId;
   form.querySelector('[name="quantity"]').value = button.dataset.quantity;
   form.querySelector('[name="return_to"]').value = button.dataset.returnTo;
+  form.querySelector('[name="return_query"]').value = button.dataset.returnQuery;
   openModal(modal);
 });
 
@@ -147,6 +148,7 @@ document.addEventListener('click', (event) => {
   const form = modal.querySelector('form');
   form.action = button.dataset.action;
   form.querySelector('[name="return_to"]').value = button.dataset.returnTo;
+  form.querySelector('[name="return_query"]').value = button.dataset.returnQuery;
   modal.querySelector('[data-delete-item-name]').textContent = button.dataset.name;
   openModal(modal);
 });

@@ -7,6 +7,7 @@ from pathlib import Path
 import re
 import sqlite3
 import tempfile
+from urllib.parse import parse_qsl
 
 from flask import (
     Flask,
@@ -78,7 +79,12 @@ def create_app(test_config=None) -> Flask:
 
     def item_redirect():
         endpoint = request.form.get("return_to", "dashboard")
-        return redirect(url_for(endpoint if endpoint in {"dashboard", "inventory"} else "dashboard"))
+        endpoint = endpoint if endpoint in {"dashboard", "inventory"} else "dashboard"
+        filters = {
+            key: value
+            for key, value in parse_qsl(request.form.get("return_query", ""))
+        }
+        return redirect(url_for(endpoint, **filters))
 
     @app.post("/items")
     def create_item():

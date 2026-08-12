@@ -383,6 +383,49 @@ def test_dashboard_search_filter_and_autocomplete(client):
     assert b'<option value="2" selected>Fresh Market</option>' in filtered.data
 
 
+@pytest.mark.parametrize(
+    ("path", "return_to", "return_query", "expected_query"),
+    [
+        ("/", "dashboard", "search=milk&store=1", "search=milk&store=1"),
+        (
+            "/inventory",
+            "inventory",
+            "search=milk&store=1&letter=M",
+            "search=milk&store=1&letter=M",
+        ),
+    ],
+)
+def test_item_updates_preserve_inventory_filters(
+    client, path, return_to, return_query, expected_query
+):
+    page = client.get(f"{path}?{return_query}")
+    assert f'name="return_query" value="{return_query.replace("&", "&amp;")}"'.encode() in page.data
+
+    response = client.post(
+        "/items/2/quantity",
+        data={
+            "change": "1",
+            "return_to": return_to,
+            "return_query": return_query,
+        },
+    )
+
+    assert response.headers["Location"] == f"{path}?{expected_query}"
+
+
+def test_item_redirect_preserves_additional_inventory_filters(client):
+    response = client.post(
+        "/items/2/quantity",
+        data={
+            "change": "1",
+            "return_to": "dashboard",
+            "return_query": "search=milk&category=2&sort=quantity",
+        },
+    )
+
+    assert response.headers["Location"] == "/?search=milk&category=2&sort=quantity"
+
+
 @pytest.mark.parametrize("action", ["edit", "quantity", "delete"])
 def test_modifying_missing_item_is_not_found(client, action):
     if action == "edit":
