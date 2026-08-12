@@ -146,118 +146,117 @@ def _column_tokens(primary):
     return tokens
 
 
-def _render_store_first(pages, lists, font_size, title):
-    column_width, gap = 168, 20
-    for batch_start in range(0, len(lists), 3):
-        batch = lists[batch_start : batch_start + 3]
-        positions = [0] * len(batch)
-        tokens = [_column_tokens(primary) for primary in batch]
-        first_batch_page = True
-        while any(positions[index] < len(tokens[index]) for index in range(len(batch))):
-            commands = []
-            page_number = len(pages) + 1
-            top = _page_header(commands, lists, "store", page_number, title)
-            for column, primary in enumerate(batch):
-                x = 32 + column * (column_width + gap)
-                if column:
-                    _line(commands, x - gap / 2, top + 5, x - gap / 2, 58, 0.35)
-                heading = primary["name"] + (" (continued)" if not first_batch_page else "")
-                heading_bottom = _draw_wrapped_text(
-                    commands, heading.upper(), x, top, column_width, 13, True
-                )
-                _line(commands, x, heading_bottom + 4, x + column_width, heading_bottom + 4, 0.8)
-                y = heading_bottom - 16
-                if (
-                    positions[column] < len(tokens[column])
-                    and tokens[column][positions[column]][0] == "item"
-                ):
-                    _text(
-                        commands,
-                        f"{tokens[column][positions[column]][2].upper()} (continued)",
-                        x,
-                        y,
-                        9,
-                        True,
-                    )
-                    y -= 22
-                while positions[column] < len(tokens[column]):
-                    token = tokens[column][positions[column]]
-                    if token[0] == "group":
-                        next_height = (
-                            _item_height(tokens[column][positions[column] + 1][1], column_width, font_size)
-                            if positions[column] + 1 < len(tokens[column])
-                            else 0
-                        )
-                        required = 24 + next_height
-                        if y - required < CONTENT_BOTTOM:
-                            break
-                        _text(commands, f"{token[1].upper()}  ({token[2]})", x, y, 10, True)
-                        y -= 24
-                    else:
-                        needed = _item_height(token[1], column_width, font_size)
-                        if y - needed < CONTENT_BOTTOM:
-                            break
-                        y = _draw_item(commands, token[1], x + 2, y, column_width - 2, font_size)
-                    positions[column] += 1
-            _footer(commands, page_number)
-            pages.append(commands)
-            first_batch_page = False
+def _primary_heading_label(primary, sort_first):
+    label = primary["name"].upper()
+    return f"{label}  ({primary['count']} items)" if sort_first == "category" else label
 
 
-def _render_category_first(pages, lists, font_size, title):
+def _primary_heading_height(primary, width, continued, sort_first):
+    lines = len(_wrapped(_primary_heading_label(primary, sort_first), width, 13))
+    return lines * 15 + (11 if continued else 0) + 12
+
+
+def _draw_primary_heading(commands, primary, x, y, width, continued, sort_first):
+    """Draw a list heading, keeping its continuation marker deliberately small."""
+    bottom = _draw_wrapped_text(
+        commands, _primary_heading_label(primary, sort_first), x, y, width, 13, True
+    )
+    if continued:
+        _text(commands, "(continued)", x, bottom + 1, 8)
+        bottom -= 11
+    _line(commands, x, bottom + 4, x + width, bottom + 4, 0.8)
+    return bottom - 12
+
+
+def _draw_group_continuation(commands, name, x, y, width):
+    bottom = _draw_wrapped_text(commands, name.upper(), x, y, width, 9, True)
+    _text(commands, "(continued)", x, bottom + 1, 7)
+    return bottom - 13
+
+
+def _render_newspaper(pages, lists, font_size, title, sort_first):
+    """Flow every list down, then across three columns like a newspaper."""
     column_width, gap = 168, 20
     commands = []
     page_number = 1
-    y = _page_header(commands, lists, "category", page_number, title)
+    top = _page_header(commands, lists, sort_first, page_number, title)
+    for divider in (210, 398):
+        _line(commands, divider, top + 5, divider, CONTENT_BOTTOM, 0.35)
+    column = 0
+    y = top
+
+    def column_x():
+        return 32 + column * (column_width + gap)
+
+    def advance_column():
+        nonlocal commands, page_number, top, column, y
+        column += 1
+        if column == 3:
+            _footer(commands, page_number)
+            pages.append(commands)
+            commands = []
+            page_number += 1
+            top = _page_header(commands, lists, sort_first, page_number, title)
+            for divider in (210, 398):
+                _line(commands, divider, top + 5, divider, CONTENT_BOTTOM, 0.35)
+            column = 0
+        y = top
+
     for primary in lists:
-        all_groups = primary.get("groups", [])
-        category_continues = False
-        for batch_start in range(0, len(all_groups), 3):
-            groups = all_groups[batch_start : batch_start + 3]
-            group_positions = [0] * len(groups)
-            while any(
-                group_positions[index] < len(group["items"])
-                for index, group in enumerate(groups)
-            ):
-                if y < 145:
-                    _footer(commands, page_number)
-                    pages.append(commands)
-                    commands = []
-                    page_number += 1
-                    y = _page_header(commands, lists, "category", page_number, title)
-                heading = primary["name"].upper() + (" (continued)" if category_continues else "")
-                _text(commands, f"{heading}  ({primary['count']} items)", 32, y, 14, True)
-                _line(commands, 32, y - 9, 580, y - 9, 0.9)
-                section_top = y - 30
-                bottoms = []
-                for column, group in enumerate(groups):
-                    x = 32 + column * (column_width + gap)
-                    if column:
-                        _line(commands, x - gap / 2, section_top + 7, x - gap / 2, 58, 0.35)
-                    heading_bottom = _draw_wrapped_text(
-                        commands, group["name"].upper(), x, section_top, column_width, 10, True
+        tokens = _column_tokens(primary)
+        if not tokens:
+            continue
+        position = 0
+        continued = False
+        while position < len(tokens):
+            heading_height = _primary_heading_height(
+                primary, column_width, continued, sort_first
+            )
+            token = tokens[position]
+            if token[0] == "group":
+                following = tokens[position + 1] if position + 1 < len(tokens) else None
+                first_content = 24 + (
+                    _item_height(following[1], column_width, font_size)
+                    if following and following[0] == "item" else 0
+                )
+            else:
+                first_content = 22 + _item_height(token[1], column_width, font_size)
+            if y - heading_height - first_content < CONTENT_BOTTOM:
+                advance_column()
+                continued = position > 0
+
+            x = column_x()
+            y = _draw_primary_heading(
+                commands, primary, x, y, column_width, continued, sort_first
+            )
+            if token[0] == "item":
+                y = _draw_group_continuation(commands, token[2], x, y, column_width)
+
+            while position < len(tokens):
+                token = tokens[position]
+                if token[0] == "group":
+                    following = tokens[position + 1] if position + 1 < len(tokens) else None
+                    required = 24 + (
+                        _item_height(following[1], column_width, font_size)
+                        if following and following[0] == "item" else 0
                     )
-                    column_y = heading_bottom - 11
-                    while group_positions[column] < len(group["items"]):
-                        item = group["items"][group_positions[column]]
-                        needed = _item_height(item, column_width, font_size)
-                        if column_y - needed < CONTENT_BOTTOM:
-                            break
-                        column_y = _draw_item(commands, item, x + 2, column_y, column_width - 2, font_size)
-                        group_positions[column] += 1
-                    bottoms.append(column_y)
-                y = min(bottoms, default=section_top) - 18
-                category_continues = True
-                if any(
-                    group_positions[index] < len(group["items"])
-                    for index, group in enumerate(groups)
-                ):
-                    _footer(commands, page_number)
-                    pages.append(commands)
-                    commands = []
-                    page_number += 1
-                    y = _page_header(commands, lists, "category", page_number, title)
-            y -= 5
+                    if y - required < CONTENT_BOTTOM:
+                        break
+                    _text(commands, f"{token[1].upper()}  ({token[2]})", x, y, 10, True)
+                    y -= 24
+                else:
+                    needed = _item_height(token[1], column_width, font_size)
+                    if y - needed < CONTENT_BOTTOM:
+                        break
+                    y = _draw_item(commands, token[1], x + 2, y, column_width - 2, font_size)
+                position += 1
+
+            if position < len(tokens):
+                advance_column()
+                continued = True
+            else:
+                y -= 10
+
     _footer(commands, page_number)
     pages.append(commands)
 
@@ -266,10 +265,8 @@ def grocery_list_pdf(lists: list[dict], title: str = "Compiled Grocery List", fo
     """Build a monochrome, multi-page grocery list grouped in the selected order."""
     sort_first = lists[0].get("sort_first", "store") if lists else "store"
     pages: list[list[str]] = []
-    if sort_first == "category":
-        _render_category_first(pages, lists, font_size, title)
-    else:
-        _render_store_first(pages, lists, font_size, title)
+    if lists:
+        _render_newspaper(pages, lists, font_size, title, sort_first)
     if not pages:
         commands = []
         _page_header(commands, lists, sort_first, 1, title)

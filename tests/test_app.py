@@ -475,13 +475,13 @@ def test_grocery_lists_and_pdfs_can_sort_category_then_store(client):
     assert b"sort_first=category" in page
 
     category_pdf = client.get("/grocery-lists/download?sort_first=category").data
-    assert category_pdf.index(b"(CLEANING  ") < category_pdf.index(b"(WALMART) Tj")
-    assert category_pdf.index(b"(WALMART) Tj") < category_pdf.index(b"(Dish soap")
-    assert category_pdf.index(b"(MISC  ") < category_pdf.index(b"(COSTCO) Tj")
+    assert category_pdf.index(b"(CLEANING ") < category_pdf.index(b"(WALMART ")
+    assert category_pdf.index(b"(WALMART ") < category_pdf.index(b"(Dish soap")
+    assert category_pdf.index(b"(MISC ") < category_pdf.index(b"(COSTCO ")
 
     store_pdf = client.get("/grocery-lists/download?sort_first=store").data
-    assert store_pdf.index(b"(COSTCO) Tj") < store_pdf.index(b"(MISC  ")
-    assert store_pdf.index(b"(WALMART) Tj") < store_pdf.index(b"(CLEANING  ")
+    assert store_pdf.index(b"(COSTCO) Tj") < store_pdf.index(b"(MISC ")
+    assert store_pdf.index(b"(WALMART) Tj") < store_pdf.index(b"(CLEANING ")
 
 
 def test_store_and_all_grocery_list_pdf_downloads(client):
@@ -495,7 +495,7 @@ def test_store_and_all_grocery_list_pdf_downloads(client):
     assert b"Eggs" not in store_pdf.data
     # The checkbox surrounds the first line's glyph body instead of sitting
     # below its text baseline.
-    assert b"34 554.2 10 10 re S" in store_pdf.data
+    assert b"0.55 w 34 558.2 10 10 re S" in store_pdf.data
     assert b"(Milk \\(Qty: 0\\)) Tj" in store_pdf.data
     assert b"[ ]" not in store_pdf.data
     assert b"(PantryPilot) Tj" in store_pdf.data
@@ -533,7 +533,8 @@ def test_long_pdf_lists_repeat_context_across_pages(client):
     pdf = client.get("/grocery-lists/stores/1/download").data
     assert b"/Count 2" in pdf or b"/Count 3" in pdf
     assert b"(Costco Grocery List \xb7 Continued)" in pdf
-    assert b"(MISC \\(continued\\))" in pdf
+    assert b"/F2 9 Tf" in pdf and b"(MISC) Tj" in pdf
+    assert b"/F1 7 Tf" in pdf and b"(\\(continued\\)) Tj" in pdf
     assert pdf.count(b"(Shop smart. Save time. Waste less.)") >= 2
     assert b"(Page 1 of 2)" in pdf or b"(Page 1 of 3)" in pdf
 
@@ -552,6 +553,27 @@ def test_pdf_wraps_long_store_headings_inside_their_columns(client):
 
     assert b"(A VERY LONG NEIGHBORHOOD) Tj" in pdf
     assert b"(GROCERY MARKETPLACE) Tj" in pdf
+
+
+def test_pdf_lists_flow_down_then_across_columns(client):
+    for index in range(24):
+        client.post(
+            "/items",
+            data={"name": f"Flow item {index:02d}", "store_id": "1", "quantity": "0"},
+        )
+    client.post(
+        "/items",
+        data={"name": "Second flow item", "store_id": "2", "quantity": "0"},
+    )
+
+    pdf = client.get("/grocery-lists/download").data
+
+    first_column = b"1 0 0 1 32 610 Tm (COSTCO) Tj"
+    second_column = b"1 0 0 1 220 610 Tm (COSTCO) Tj"
+    next_list_same_column = b"1 0 0 1 220 418 Tm (FRESH MARKET) Tj"
+    assert pdf.index(first_column) < pdf.index(second_column)
+    assert pdf.index(second_column) < pdf.index(next_list_same_column)
+    assert b"/F1 8 Tf" in pdf and b"(\\(continued\\)) Tj" in pdf
 
 
 def test_pdf_font_size_setting_updates_all_exported_pdfs(client):
