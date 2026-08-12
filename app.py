@@ -52,6 +52,7 @@ def create_app(test_config=None) -> Flask:
         return render_template(
             "dashboard.html",
             active="dashboard",
+            username=grocery.username(),
             search=search,
             selected_store=store_id,
             **grocery.dashboard_data(search, store_id),
@@ -287,7 +288,10 @@ def create_app(test_config=None) -> Flask:
     def settings():
         if request.method == "POST":
             try:
-                if "pdf_font_size" in request.form:
+                if "username" in request.form:
+                    username = grocery.update_username(request.form.get("username"))
+                    message = f"Username was updated to {username}."
+                elif "pdf_font_size" in request.form:
                     font_size = grocery.update_pdf_font_size(
                         request.form.get("pdf_font_size")
                     )
@@ -305,6 +309,7 @@ def create_app(test_config=None) -> Flask:
         return render_template(
             "settings.html",
             active="settings",
+            username=grocery.username(),
             item_minimum=grocery.item_minimum(),
             pdf_font_size=grocery.pdf_font_size(),
         )

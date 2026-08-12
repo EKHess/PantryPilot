@@ -26,6 +26,7 @@ DEFAULT_ITEMS = [
 STORE_NAME_MAX_LENGTH = 80
 ITEM_NAME_MAX_LENGTH = 120
 CATEGORY_NAME_MAX_LENGTH = 80
+USERNAME_MAX_LENGTH = 80
 COLOR_PATTERN = re.compile(r"^#[0-9a-fA-F]{6}$")
 
 
@@ -43,6 +44,31 @@ class CategoryValidationError(ValueError):
 
 class SettingsValidationError(ValueError):
     """Raised when an application setting cannot be saved."""
+
+
+def username() -> str:
+    row = database.get_connection().execute(
+        "SELECT value FROM app_metadata WHERE key = 'username'"
+    ).fetchone()
+    return row["value"] if row else ""
+
+
+def update_username(value) -> str:
+    clean_username = " ".join((value or "").split())
+    if not clean_username:
+        raise SettingsValidationError("Enter a username.")
+    if len(clean_username) > USERNAME_MAX_LENGTH:
+        raise SettingsValidationError(
+            f"Username must be {USERNAME_MAX_LENGTH} characters or fewer."
+        )
+    connection = database.get_connection()
+    connection.execute(
+        """INSERT INTO app_metadata (key, value) VALUES ('username', ?)
+           ON CONFLICT(key) DO UPDATE SET value = excluded.value""",
+        (clean_username,),
+    )
+    connection.commit()
+    return clean_username
 
 
 def item_minimum() -> int:

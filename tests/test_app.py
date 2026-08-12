@@ -13,7 +13,7 @@ def client(tmp_path):
 
 
 @pytest.mark.parametrize("path, heading", [
-    ("/", "Good morning"),
+    ("/", "Hello"),
     ("/inventory", "Inventory"),
     ("/grocery-lists", "Grocery lists"),
     ("/stores", "Stores"),
@@ -673,6 +673,41 @@ def test_item_minimum_persists_across_restart(tmp_path):
     ).test_client()
     assert b'value="4"' in restarted.get("/settings").data
     assert b'<span class="badge low">Low</span>' in restarted.get("/inventory").data
+
+
+def test_username_updates_dashboard_greeting_and_persists(tmp_path):
+    database_path = tmp_path / "username.db"
+    app = create_app({"TESTING": True, "DATABASE": str(database_path)})
+    client = app.test_client()
+
+    response = client.post(
+        "/settings", data={"username": "  Ada   Lovelace  "}, follow_redirects=True
+    )
+
+    assert b"Username was updated to Ada Lovelace." in response.data
+    assert b'value="Ada Lovelace"' in response.data
+    assert b"Hello, Ada Lovelace" in client.get("/").data
+
+    restarted = create_app(
+        {"TESTING": True, "DATABASE": str(database_path)}
+    ).test_client()
+    assert b"Hello, Ada Lovelace" in restarted.get("/").data
+
+
+@pytest.mark.parametrize(
+    "value,message",
+    [
+        ("", "Enter a username."),
+        ("A" * 81, "Username must be 80 characters or fewer."),
+    ],
+)
+def test_username_rejects_invalid_values(client, value, message):
+    response = client.post(
+        "/settings", data={"username": value}, follow_redirects=True
+    )
+
+    assert message.encode() in response.data
+    assert b"Hello," not in client.get("/").data
 
 
 def test_inventory_letter_selectors_filter_by_item_name(client):

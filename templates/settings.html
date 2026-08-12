@@ -3,6 +3,16 @@
 <header class="page-header"><div><h1>Settings</h1><p>Customize PantryPilot for your household.</p></div></header>
 <section class="settings-list"><article class="card settings-card">
   <div>
+    <h2>Username</h2>
+    <p>Choose the name PantryPilot uses to greet you on the Dashboard.</p>
+  </div>
+  <form method="post" action="{{ url_for('settings') }}">
+    <label for="username">Username</label>
+    <div class="setting-control"><input id="username" name="username" type="text" maxlength="80" value="{{ username }}" autocomplete="name" required><button class="button primary" type="submit">Save</button></div>
+  </form>
+</article>
+<article class="card settings-card">
+  <div>
     <h2>Item Minimum</h2>
     <p>Items at or below this quantity are marked Low. Items at zero remain Out.</p>
   </div>
