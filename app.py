@@ -82,6 +82,12 @@ def create_app(test_config=None) -> Flask:
             selected_letter=selected_letter,
         )
 
+    @app.get("/api/inventory/suggestions")
+    def inventory_suggestions():
+        return jsonify(
+            {"suggestions": grocery.inventory_suggestions(request.args.get("q", ""))}
+        )
+
     def item_redirect():
         endpoint = request.form.get("return_to", "dashboard")
         endpoint = endpoint if endpoint in {"dashboard", "inventory"} else "dashboard"

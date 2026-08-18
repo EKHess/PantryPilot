@@ -34,7 +34,10 @@ async function refreshInventory() {
   if (!response.ok) return;
   const page = new DOMParser().parseFromString(await response.text(), 'text/html');
   const updatedPanel = page.querySelector('.inventory-panel');
-  if (updatedPanel) inventoryPanel.replaceWith(updatedPanel);
+  if (updatedPanel) {
+    inventoryPanel.replaceWith(updatedPanel);
+    document.dispatchEvent(new CustomEvent('pantrypilot:inventory-refreshed'));
+  }
 }
 
 inventoryUpdates?.addEventListener('message', refreshInventory);

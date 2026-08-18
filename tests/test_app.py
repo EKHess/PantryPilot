@@ -430,7 +430,24 @@ def test_dashboard_search_filter_and_autocomplete(client):
     filtered = client.get("/?store=2")
     assert b"<strong>Bananas</strong>" in filtered.data
     assert b"<strong>Milk</strong>" not in filtered.data
-    assert b'<option value="2" selected>Fresh Market</option>' in filtered.data
+    assert b'<input type="hidden" name="store" value="2">' in filtered.data
+
+
+def test_inventory_and_dashboard_search_forms_hide_redundant_controls(client):
+    inventory_form = client.get('/inventory').data.split(b'<form class="filters inventory-filters"', 1)[1].split(b'</form>', 1)[0]
+    dashboard_form = client.get('/').data.split(b'<form class="filters dashboard-lookup"', 1)[1].split(b'</form>', 1)[0]
+
+    assert b'All stores' not in inventory_form
+    assert b'>Search</button>' not in inventory_form
+    assert b'link-button' not in inventory_form
+    assert b'All stores' not in dashboard_form
+    assert b'>Search</button>' not in dashboard_form
+    assert b'link-button' not in dashboard_form
+
+
+def test_search_sections_render_updated_headings(client):
+    assert b'<h2 class="inventory-search-heading">Search Your Pantry</h2>' in client.get('/inventory').data
+    assert b'<h2>Quick Pantry Lookup</h2>' in client.get('/').data
 
 
 @pytest.mark.parametrize(
@@ -847,9 +864,48 @@ def test_inventory_letter_filter_is_case_insensitive_and_combines_with_filters(c
     assert b"<strong>Bananas</strong>" in filtered
     assert b"<strong>Brown rice</strong>" not in filtered
     assert b'<input type="hidden" name="letter" value="B">' in filtered
-    assert b'<option value="2" selected>Fresh Market</option>' in filtered
+    assert b'<input type="hidden" name="store" value="2">' in filtered
     assert b'<a class="" href="/inventory">All</a>' in filtered
 
     invalid = client.get("/inventory?letter=invalid").data
     assert b'<a class="active" href="/inventory" aria-current="page">All</a>' in invalid
     assert b"<strong>Milk</strong>" in invalid
+
+
+def test_inventory_suggestions_require_two_characters(client):
+    assert client.get('/api/inventory/suggestions?q=m').get_json() == {'suggestions': []}
+    assert client.get('/api/inventory/suggestions?q=  ').get_json() == {'suggestions': []}
+
+
+def test_inventory_suggestions_are_case_insensitive_and_include_details(client):
+    suggestions = client.get('/api/inventory/suggestions?q=MIL').get_json()['suggestions']
+    milk = next(item for item in suggestions if item['name'] == 'Milk')
+    assert milk['store'] == 'Costco'
+    assert milk['quantity'] == 0
+
+
+def test_inventory_suggestions_rank_prefixes_before_substrings(client):
+    client.post('/items', data={'name': 'Amilk substring', 'store_id': '1', 'quantity': '2'})
+    client.post('/items', data={'name': 'Milk prefix', 'store_id': '1', 'quantity': '1'})
+    names = [item['name'] for item in client.get('/api/inventory/suggestions?q=milk').get_json()['suggestions']]
+    assert names.index('Milk') < names.index('Amilk substring')
+    assert names.index('Milk prefix') < names.index('Amilk substring')
+
+
+def test_inventory_suggestions_limit_results_and_exclude_inactive(client):
+    for index in range(12):
+        client.post('/items', data={'name': f'Test suggestion {index:02}', 'store_id': '1', 'quantity': str(index)})
+    client.post('/items', data={'name': 'Test inactive', 'store_id': '2', 'quantity': '4', 'is_active': ['0']})
+    suggestions = client.get('/api/inventory/suggestions?q=test').get_json()['suggestions']
+    assert len(suggestions) == 10
+    assert all(item['name'] != 'Test inactive' for item in suggestions)
+
+
+def test_inventory_suggestions_treat_sql_wildcards_literally(client):
+    client.post('/items', data={'name': '100% Juice', 'store_id': '1', 'quantity': '3'})
+    client.post('/items', data={'name': 'Under_score', 'store_id': '1', 'quantity': '2'})
+    percent = client.get('/api/inventory/suggestions?q=0%').get_json()['suggestions']
+    underscore = client.get('/api/inventory/suggestions?q=r_').get_json()['suggestions']
+    assert [item['name'] for item in percent] == ['100% Juice']
+    assert [item['name'] for item in underscore] == ['Under_score']
+    assert client.get('/api/inventory/suggestions?q=zz-no-match').get_json() == {'suggestions': []}

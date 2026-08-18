@@ -399,6 +399,37 @@ def item_names() -> list[str]:
     return [row["name"] for row in rows]
 
 
+def inventory_suggestions(query: str, limit: int = 10) -> list[dict]:
+    """Return active inventory matches, with prefix matches ranked first."""
+    clean_query = (query or "").strip()
+    if len(clean_query) < 2:
+        return []
+
+    # Treat LIKE metacharacters as ordinary search characters.
+    escaped = (
+        clean_query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    )
+    prefix = f"{escaped}%"
+    contains = f"%{escaped}%"
+    rows = database.get_connection().execute(
+        """SELECT i.id, i.name, COALESCE(s.name, 'Unassigned') AS store,
+                  i.quantity
+           FROM grocery_items AS i
+           LEFT JOIN stores AS s ON s.id = i.store_id
+           WHERE i.is_active = 1
+             AND i.name LIKE ? ESCAPE '\\' COLLATE NOCASE
+           ORDER BY CASE
+                        WHEN i.name LIKE ? ESCAPE '\\' COLLATE NOCASE THEN 0
+                        ELSE 1
+                    END,
+                    i.name COLLATE NOCASE,
+                    store COLLATE NOCASE
+           LIMIT ?""",
+        (contains, prefix, min(max(int(limit), 1), 10)),
+    ).fetchall()
+    return [dict(row) for row in rows]
+
+
 def get_item(item_id: int) -> dict | None:
     row = database.get_connection().execute(
         """SELECT i.id, i.name, i.store_id, i.category_id, i.quantity, i.item_minimum,
