@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS grocery_items (
     name TEXT NOT NULL,
     store_id INTEGER REFERENCES stores(id),
     quantity INTEGER NOT NULL DEFAULT 0 CHECK (quantity >= 0),
+    item_minimum INTEGER CHECK (item_minimum IS NULL OR item_minimum >= 0),
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE IF NOT EXISTS categories (
@@ -62,6 +63,11 @@ def initialize_schema() -> None:
     if "category_id" not in item_columns:
         get_connection().execute(
             "ALTER TABLE grocery_items ADD COLUMN category_id INTEGER REFERENCES categories(id)"
+        )
+    if "item_minimum" not in item_columns:
+        get_connection().execute(
+            "ALTER TABLE grocery_items ADD COLUMN item_minimum INTEGER "
+            "CHECK (item_minimum IS NULL OR item_minimum >= 0)"
         )
     get_connection().commit()
 

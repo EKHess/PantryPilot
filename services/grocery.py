@@ -347,11 +347,16 @@ def status_for(quantity: int, minimum: int) -> tuple[str, str]:
     return "In Stock", "stock"
 
 
-def _item_from_row(row, minimum: int) -> dict:
+def _item_from_row(row, default_minimum: int) -> dict:
     item = dict(row)
     item["store"] = item["store"] or "Unassigned"
     item["added"] = datetime.fromisoformat(item.pop("created_at")).strftime("%b %d, %Y")
-    item["status"] = status_for(item["quantity"], minimum)
+    item["effective_item_minimum"] = (
+        item["item_minimum"]
+        if item["item_minimum"] is not None
+        else default_minimum
+    )
+    item["status"] = status_for(item["quantity"], item["effective_item_minimum"])
     return item
 
 
@@ -372,7 +377,8 @@ def inventory_items(
         parameters.append(f"{letter}%")
     where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
     rows = database.get_connection().execute(
-        f"""SELECT i.id, i.name, i.store_id, i.category_id, i.quantity, i.created_at,
+        f"""SELECT i.id, i.name, i.store_id, i.category_id, i.quantity, i.item_minimum,
+                   i.created_at,
                    s.name AS store, s.color AS store_color,
                    c.name AS category, c.color AS category_color
             FROM grocery_items AS i
@@ -394,7 +400,8 @@ def item_names() -> list[str]:
 
 def get_item(item_id: int) -> dict | None:
     row = database.get_connection().execute(
-        """SELECT i.id, i.name, i.store_id, i.category_id, i.quantity, i.created_at,
+        """SELECT i.id, i.name, i.store_id, i.category_id, i.quantity, i.item_minimum,
+                  i.created_at,
                   s.name AS store, s.color AS store_color,
                   c.name AS category, c.color AS category_color
            FROM grocery_items AS i
@@ -406,7 +413,9 @@ def get_item(item_id: int) -> dict | None:
     return _item_from_row(row, item_minimum()) if row else None
 
 
-def _validated_item_values(name: str, store_id, quantity, category_id=None) -> tuple[str, int, int, int]:
+def _validated_item_values(
+    name: str, store_id, quantity, category_id=None, custom_minimum=None
+) -> tuple[str, int, int, int, int | None]:
     clean_name = " ".join((name or "").split())
     if not clean_name:
         raise ItemValidationError("Enter an item name.")
@@ -437,13 +446,33 @@ def _validated_item_values(name: str, store_id, quantity, category_id=None) -> t
             raise ItemValidationError("Choose a valid category.") from error
         if not get_category(clean_category_id):
             raise ItemValidationError("Choose a valid category.")
-    return clean_name, clean_store_id, clean_quantity, clean_category_id
-
-
-def create_item(name: str, store_id, quantity, category_id=None) -> dict:
-    clean_name, clean_store_id, clean_quantity, clean_category_id = _validated_item_values(
-        name, store_id, quantity, category_id
+    if custom_minimum in (None, ""):
+        clean_minimum = None
+    else:
+        try:
+            clean_minimum = int(custom_minimum)
+        except (TypeError, ValueError) as error:
+            raise ItemValidationError(
+                "Item Minimum must be a whole number."
+            ) from error
+        if clean_minimum < 0:
+            raise ItemValidationError("Item Minimum cannot be negative.")
+    return (
+        clean_name,
+        clean_store_id,
+        clean_quantity,
+        clean_category_id,
+        clean_minimum,
     )
+
+
+def create_item(
+    name: str, store_id, quantity, category_id=None, custom_minimum=None
+) -> dict:
+    values = _validated_item_values(
+        name, store_id, quantity, category_id, custom_minimum
+    )
+    clean_name, clean_store_id, clean_quantity, clean_category_id, clean_minimum = values
     connection = database.get_connection()
     duplicate = connection.execute(
         """SELECT 1 FROM grocery_items
@@ -455,23 +484,37 @@ def create_item(name: str, store_id, quantity, category_id=None) -> dict:
             "An item with this name and store already is in the pantry inventory."
         )
     cursor = connection.execute(
-        "INSERT INTO grocery_items (name, store_id, quantity, category_id) VALUES (?, ?, ?, ?)",
-        (clean_name, clean_store_id, clean_quantity, clean_category_id),
+        """INSERT INTO grocery_items
+           (name, store_id, quantity, category_id, item_minimum)
+           VALUES (?, ?, ?, ?, ?)""",
+        (clean_name, clean_store_id, clean_quantity, clean_category_id, clean_minimum),
     )
     connection.commit()
     return get_item(cursor.lastrowid)
 
 
-def update_item(item_id: int, name: str, store_id, quantity, category_id=None) -> dict | None:
+def update_item(
+    item_id: int, name: str, store_id, quantity, category_id=None, custom_minimum=None
+) -> dict | None:
     if not get_item(item_id):
         return None
-    clean_name, clean_store_id, clean_quantity, clean_category_id = _validated_item_values(
-        name, store_id, quantity, category_id
+    values = _validated_item_values(
+        name, store_id, quantity, category_id, custom_minimum
     )
+    clean_name, clean_store_id, clean_quantity, clean_category_id, clean_minimum = values
     connection = database.get_connection()
     connection.execute(
-        "UPDATE grocery_items SET name = ?, store_id = ?, quantity = ?, category_id = ? WHERE id = ?",
-        (clean_name, clean_store_id, clean_quantity, clean_category_id, item_id),
+        """UPDATE grocery_items
+           SET name = ?, store_id = ?, quantity = ?, category_id = ?, item_minimum = ?
+           WHERE id = ?""",
+        (
+            clean_name,
+            clean_store_id,
+            clean_quantity,
+            clean_category_id,
+            clean_minimum,
+            item_id,
+        ),
     )
     connection.commit()
     return get_item(item_id)

@@ -136,6 +136,7 @@ document.addEventListener('click', (event) => {
   form.querySelector('[name="store_id"]').value = button.dataset.storeId;
   form.querySelector('[name="category_id"]').value = button.dataset.categoryId;
   form.querySelector('[name="quantity"]').value = button.dataset.quantity;
+  form.querySelector('[name="item_minimum"]').value = button.dataset.itemMinimum;
   form.querySelector('[name="return_to"]').value = button.dataset.returnTo;
   form.querySelector('[name="return_query"]').value = button.dataset.returnQuery;
   openModal(modal);
