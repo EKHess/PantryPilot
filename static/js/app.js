@@ -137,6 +137,7 @@ document.addEventListener('click', (event) => {
   form.querySelector('[name="category_id"]').value = button.dataset.categoryId;
   form.querySelector('[name="quantity"]').value = button.dataset.quantity;
   form.querySelector('[name="item_minimum"]').value = button.dataset.itemMinimum;
+  form.querySelector('[name="is_active"][type="checkbox"]').checked = button.dataset.isActive === '1';
   form.querySelector('[name="return_to"]').value = button.dataset.returnTo;
   form.querySelector('[name="return_query"]').value = button.dataset.returnQuery;
   openModal(modal);
