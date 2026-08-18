@@ -430,7 +430,18 @@ def test_dashboard_search_filter_and_autocomplete(client):
     filtered = client.get("/?store=2")
     assert b"<strong>Bananas</strong>" in filtered.data
     assert b"<strong>Milk</strong>" not in filtered.data
-    assert b'<option value="2" selected>Fresh Market</option>' in filtered.data
+    assert b'<input type="hidden" name="store" value="2">' in filtered.data
+
+
+def test_inventory_and_dashboard_search_forms_hide_redundant_controls(client):
+    inventory_form = client.get('/inventory').data.split(b'<form class="filters inventory-filters"', 1)[1].split(b'</form>', 1)[0]
+    dashboard_form = client.get('/').data.split(b'<form class="filters"', 1)[1].split(b'</form>', 1)[0]
+
+    assert b'All stores' not in inventory_form
+    assert b'>Search</button>' not in inventory_form
+    assert b'link-button' not in inventory_form
+    assert b'All stores' not in dashboard_form
+    assert b'>Search</button>' not in dashboard_form
 
 
 @pytest.mark.parametrize(
@@ -847,7 +858,7 @@ def test_inventory_letter_filter_is_case_insensitive_and_combines_with_filters(c
     assert b"<strong>Bananas</strong>" in filtered
     assert b"<strong>Brown rice</strong>" not in filtered
     assert b'<input type="hidden" name="letter" value="B">' in filtered
-    assert b'<option value="2" selected>Fresh Market</option>' in filtered
+    assert b'<input type="hidden" name="store" value="2">' in filtered
     assert b'<a class="" href="/inventory">All</a>' in filtered
 
     invalid = client.get("/inventory?letter=invalid").data
