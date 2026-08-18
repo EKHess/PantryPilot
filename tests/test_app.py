@@ -853,3 +853,42 @@ def test_inventory_letter_filter_is_case_insensitive_and_combines_with_filters(c
     invalid = client.get("/inventory?letter=invalid").data
     assert b'<a class="active" href="/inventory" aria-current="page">All</a>' in invalid
     assert b"<strong>Milk</strong>" in invalid
+
+
+def test_inventory_suggestions_require_two_characters(client):
+    assert client.get('/api/inventory/suggestions?q=m').get_json() == {'suggestions': []}
+    assert client.get('/api/inventory/suggestions?q=  ').get_json() == {'suggestions': []}
+
+
+def test_inventory_suggestions_are_case_insensitive_and_include_details(client):
+    suggestions = client.get('/api/inventory/suggestions?q=MIL').get_json()['suggestions']
+    milk = next(item for item in suggestions if item['name'] == 'Milk')
+    assert milk['store'] == 'Costco'
+    assert milk['quantity'] == 0
+
+
+def test_inventory_suggestions_rank_prefixes_before_substrings(client):
+    client.post('/items', data={'name': 'Amilk substring', 'store_id': '1', 'quantity': '2'})
+    client.post('/items', data={'name': 'Milk prefix', 'store_id': '1', 'quantity': '1'})
+    names = [item['name'] for item in client.get('/api/inventory/suggestions?q=milk').get_json()['suggestions']]
+    assert names.index('Milk') < names.index('Amilk substring')
+    assert names.index('Milk prefix') < names.index('Amilk substring')
+
+
+def test_inventory_suggestions_limit_results_and_exclude_inactive(client):
+    for index in range(12):
+        client.post('/items', data={'name': f'Test suggestion {index:02}', 'store_id': '1', 'quantity': str(index)})
+    client.post('/items', data={'name': 'Test inactive', 'store_id': '2', 'quantity': '4', 'is_active': ['0']})
+    suggestions = client.get('/api/inventory/suggestions?q=test').get_json()['suggestions']
+    assert len(suggestions) == 10
+    assert all(item['name'] != 'Test inactive' for item in suggestions)
+
+
+def test_inventory_suggestions_treat_sql_wildcards_literally(client):
+    client.post('/items', data={'name': '100% Juice', 'store_id': '1', 'quantity': '3'})
+    client.post('/items', data={'name': 'Under_score', 'store_id': '1', 'quantity': '2'})
+    percent = client.get('/api/inventory/suggestions?q=0%').get_json()['suggestions']
+    underscore = client.get('/api/inventory/suggestions?q=r_').get_json()['suggestions']
+    assert [item['name'] for item in percent] == ['100% Juice']
+    assert [item['name'] for item in underscore] == ['Under_score']
+    assert client.get('/api/inventory/suggestions?q=zz-no-match').get_json() == {'suggestions': []}
