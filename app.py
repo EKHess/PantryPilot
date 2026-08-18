@@ -43,7 +43,11 @@ def create_app(test_config=None) -> Flask:
 
     @app.context_processor
     def form_choices():
-        return {"store_choices": grocery.stores(), "category_choices": grocery.categories()}
+        return {
+            "store_choices": grocery.stores(),
+            "category_choices": grocery.categories(),
+            "default_item_minimum": grocery.item_minimum(),
+        }
 
     @app.get("/")
     def dashboard():
@@ -95,6 +99,7 @@ def create_app(test_config=None) -> Flask:
                 request.form.get("store_id"),
                 request.form.get("quantity"),
                 request.form.get("category_id"),
+                request.form.get("item_minimum"),
             )
         except grocery.ItemValidationError as error:
             if request.accept_mimetypes.best == "application/json":
@@ -120,6 +125,7 @@ def create_app(test_config=None) -> Flask:
                 request.form.get("store_id"),
                 request.form.get("quantity"),
                 request.form.get("category_id"),
+                request.form.get("item_minimum"),
             )
         except grocery.ItemValidationError as error:
             flash(str(error), "error")

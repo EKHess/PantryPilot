@@ -482,6 +482,73 @@ def test_item_minimum_updates_inventory_statuses_and_lists(client):
     assert b"Above item" not in grocery_lists
 
 
+def test_custom_item_minimum_overrides_default_and_can_be_cleared(client):
+    client.post("/settings", data={"item_minimum": "2"})
+    created = client.post(
+        "/items",
+        data={
+            "name": "Custom minimum item",
+            "store_id": "1",
+            "quantity": "3",
+            "item_minimum": "4",
+        },
+        follow_redirects=True,
+    )
+
+    custom_row = created.data.split(b"<strong>Custom minimum item</strong>", 1)[1].split(
+        b"</tr>", 1
+    )[0]
+    assert b'<span class="badge low">Low</span>' in custom_row
+    assert b'data-item-minimum="4"' in custom_row
+
+    cleared = client.post(
+        "/items/6/edit",
+        data={
+            "name": "Custom minimum item",
+            "store_id": "1",
+            "quantity": "3",
+            "item_minimum": "",
+        },
+        follow_redirects=True,
+    )
+    default_row = cleared.data.split(b"<strong>Custom minimum item</strong>", 1)[
+        1
+    ].split(b"</tr>", 1)[0]
+    assert b'<span class="badge stock">In Stock</span>' in default_row
+    assert b'data-item-minimum=""' in default_row
+
+
+def test_item_forms_offer_optional_custom_minimum(client):
+    page = client.get("/inventory").data
+
+    assert page.count(b'name="item_minimum"') == 2
+    assert page.count(b'placeholder="Default: 1"') == 2
+    assert b"Leave blank to use the default from Settings." in page
+
+
+@pytest.mark.parametrize(
+    "value,message",
+    [
+        ("1.5", "Item Minimum must be a whole number."),
+        ("-1", "Item Minimum cannot be negative."),
+    ],
+)
+def test_custom_item_minimum_rejects_invalid_values(client, value, message):
+    response = client.post(
+        "/items",
+        data={
+            "name": "Invalid minimum",
+            "store_id": "1",
+            "quantity": "3",
+            "item_minimum": value,
+        },
+        follow_redirects=True,
+    )
+
+    assert message.encode() in response.data
+    assert b"Invalid minimum" not in client.get("/inventory").data
+
+
 def test_grocery_lists_default_to_out_items_and_toggle_low_items(client):
     default_page = client.get("/grocery-lists")
     assert b"List settings" in default_page.data
