@@ -435,13 +435,19 @@ def test_dashboard_search_filter_and_autocomplete(client):
 
 def test_inventory_and_dashboard_search_forms_hide_redundant_controls(client):
     inventory_form = client.get('/inventory').data.split(b'<form class="filters inventory-filters"', 1)[1].split(b'</form>', 1)[0]
-    dashboard_form = client.get('/').data.split(b'<form class="filters"', 1)[1].split(b'</form>', 1)[0]
+    dashboard_form = client.get('/').data.split(b'<form class="filters dashboard-lookup"', 1)[1].split(b'</form>', 1)[0]
 
     assert b'All stores' not in inventory_form
     assert b'>Search</button>' not in inventory_form
     assert b'link-button' not in inventory_form
     assert b'All stores' not in dashboard_form
     assert b'>Search</button>' not in dashboard_form
+    assert b'link-button' not in dashboard_form
+
+
+def test_search_sections_render_updated_headings(client):
+    assert b'<h2 class="inventory-search-heading">Search Your Pantry</h2>' in client.get('/inventory').data
+    assert b'<h2>Quick Pantry Lookup</h2>' in client.get('/').data
 
 
 @pytest.mark.parametrize(
