@@ -378,6 +378,7 @@ def inventory_items(
     where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
     rows = database.get_connection().execute(
         f"""SELECT i.id, i.name, i.store_id, i.category_id, i.quantity, i.item_minimum,
+                   i.is_active,
                    i.created_at,
                    s.name AS store, s.color AS store_color,
                    c.name AS category, c.color AS category_color
@@ -401,6 +402,7 @@ def item_names() -> list[str]:
 def get_item(item_id: int) -> dict | None:
     row = database.get_connection().execute(
         """SELECT i.id, i.name, i.store_id, i.category_id, i.quantity, i.item_minimum,
+                  i.is_active,
                   i.created_at,
                   s.name AS store, s.color AS store_color,
                   c.name AS category, c.color AS category_color
@@ -467,7 +469,12 @@ def _validated_item_values(
 
 
 def create_item(
-    name: str, store_id, quantity, category_id=None, custom_minimum=None
+    name: str,
+    store_id,
+    quantity,
+    category_id=None,
+    custom_minimum=None,
+    is_active=True,
 ) -> dict:
     values = _validated_item_values(
         name, store_id, quantity, category_id, custom_minimum
@@ -485,16 +492,29 @@ def create_item(
         )
     cursor = connection.execute(
         """INSERT INTO grocery_items
-           (name, store_id, quantity, category_id, item_minimum)
-           VALUES (?, ?, ?, ?, ?)""",
-        (clean_name, clean_store_id, clean_quantity, clean_category_id, clean_minimum),
+           (name, store_id, quantity, category_id, item_minimum, is_active)
+           VALUES (?, ?, ?, ?, ?, ?)""",
+        (
+            clean_name,
+            clean_store_id,
+            clean_quantity,
+            clean_category_id,
+            clean_minimum,
+            int(is_active),
+        ),
     )
     connection.commit()
     return get_item(cursor.lastrowid)
 
 
 def update_item(
-    item_id: int, name: str, store_id, quantity, category_id=None, custom_minimum=None
+    item_id: int,
+    name: str,
+    store_id,
+    quantity,
+    category_id=None,
+    custom_minimum=None,
+    is_active=True,
 ) -> dict | None:
     if not get_item(item_id):
         return None
@@ -505,7 +525,8 @@ def update_item(
     connection = database.get_connection()
     connection.execute(
         """UPDATE grocery_items
-           SET name = ?, store_id = ?, quantity = ?, category_id = ?, item_minimum = ?
+           SET name = ?, store_id = ?, quantity = ?, category_id = ?, item_minimum = ?,
+               is_active = ?
            WHERE id = ?""",
         (
             clean_name,
@@ -513,6 +534,7 @@ def update_item(
             clean_quantity,
             clean_category_id,
             clean_minimum,
+            int(is_active),
             item_id,
         ),
     )
@@ -590,8 +612,11 @@ def grocery_lists(
     restock_items = [
         item
         for item in inventory_items(store_id=store_id)
-        if item["status"][1] == "out"
-        or (include_low and item["status"][1] == "low")
+        if item["is_active"]
+        and (
+            item["status"][1] == "out"
+            or (include_low and item["status"][1] == "low")
+        )
     ]
     primary_key, secondary_key = (
         ("store", "category") if sort_first == "store" else ("category", "store")

@@ -36,6 +36,7 @@
         <label for="item-category">Category <span class="optional">(optional)</span><select id="item-category" name="category_id"><option value="">misc</option>{% for category in category_choices if category.name|lower != 'misc' %}<option value="{{ category.id }}">{{ category.name }}</option>{% endfor %}</select></label>
         <label for="item-quantity">Quantity<input id="item-quantity" name="quantity" type="number" min="0" step="1" value="0" required></label>
         <label for="new-item-minimum">Item Minimum <span class="optional">(optional)</span><input id="new-item-minimum" name="item_minimum" type="number" min="0" step="1" placeholder="Default: {{ default_item_minimum }}"><span class="optional">Leave blank to use the default from Settings.</span></label>
+        <label class="switch-control item-active-control"><input type="hidden" name="is_active" value="0"><input name="is_active" type="checkbox" value="1" checked><span class="switch" aria-hidden="true"></span><span>Active</span></label>
         <div class="modal-notification" data-add-item-notification role="status" aria-live="polite" hidden></div>
         <div class="modal-actions"><button class="button" type="button" data-done-adding>Done</button><button class="button primary" type="submit" {{ 'disabled' if not store_choices }}>Add Item</button></div>
       </form>
@@ -53,6 +54,7 @@
         <label for="edit-item-category">Category<select id="edit-item-category" name="category_id">{% for category in category_choices %}<option value="{{ category.id }}">{{ category.name }}</option>{% endfor %}</select></label>
         <label for="edit-item-quantity">Quantity<input id="edit-item-quantity" name="quantity" type="number" min="0" step="1" required></label>
         <label for="edit-item-minimum">Item Minimum <span class="optional">(optional)</span><input id="edit-item-minimum" name="item_minimum" type="number" min="0" step="1" placeholder="Default: {{ default_item_minimum }}"><span class="optional">Leave blank to use the default from Settings.</span></label>
+        <label class="switch-control item-active-control"><input type="hidden" name="is_active" value="0"><input name="is_active" type="checkbox" value="1"><span class="switch" aria-hidden="true"></span><span>Active</span></label>
         <div class="modal-actions"><button class="button" type="button" data-close-modal>Cancel</button><button class="button primary" type="submit">Save Changes</button></div>
       </form>
     </div>

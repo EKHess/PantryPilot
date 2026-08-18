@@ -368,6 +368,56 @@ def test_item_edit_quantity_controls_and_delete(client):
     assert b'data-name="Plantains"' not in deleted.data
 
 
+def test_items_default_active_and_can_be_made_inactive(client):
+    created = client.post(
+        "/items",
+        data={"name": "Default active", "store_id": "1", "quantity": "0"},
+        follow_redirects=True,
+    )
+    assert b'data-name="Default active"' in created.data
+    assert b'data-is-active="1"' in created.data
+
+    inactive = client.post(
+        "/items/5/edit",
+        data={
+            "name": "Milk",
+            "store_id": "1",
+            "quantity": "0",
+            "category_id": "1",
+            "is_active": "0",
+            "return_to": "inventory",
+        },
+        follow_redirects=True,
+    )
+    milk_row = inactive.data.split(b'<strong>Milk</strong>', 1)[0].rsplit(b"<tr", 1)[1]
+    assert b'class="inactive-item"' in milk_row
+    assert b'data-is-active="0"' in inactive.data
+
+    dashboard = client.get("/").data
+    assert b'class="inactive-item"' in dashboard
+    assert b"Milk" in dashboard
+
+    grocery_page = client.get("/grocery-lists?include_low=1").data
+    grocery_pdf = client.get("/grocery-lists/download?include_low=1").data
+    assert b"Milk" not in grocery_page
+    assert b"Milk" not in grocery_pdf
+
+    reactivated = client.post(
+        "/items/5/edit",
+        data={
+            "name": "Milk",
+            "store_id": "1",
+            "quantity": "0",
+            "category_id": "1",
+            "is_active": ["0", "1"],
+            "return_to": "inventory",
+        },
+        follow_redirects=True,
+    )
+    assert b'data-is-active="1"' in reactivated.data
+    assert b"Milk" in client.get("/grocery-lists").data
+
+
 def test_dashboard_search_filter_and_autocomplete(client):
     page = client.get("/")
     assert b'<datalist id="inventory-names">' in page.data

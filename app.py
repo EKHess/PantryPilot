@@ -100,6 +100,8 @@ def create_app(test_config=None) -> Flask:
                 request.form.get("quantity"),
                 request.form.get("category_id"),
                 request.form.get("item_minimum"),
+                not request.form.getlist("is_active")
+                or request.form.getlist("is_active")[-1] == "1",
             )
         except grocery.ItemValidationError as error:
             if request.accept_mimetypes.best == "application/json":
@@ -126,6 +128,8 @@ def create_app(test_config=None) -> Flask:
                 request.form.get("quantity"),
                 request.form.get("category_id"),
                 request.form.get("item_minimum"),
+                not request.form.getlist("is_active")
+                or request.form.getlist("is_active")[-1] == "1",
             )
         except grocery.ItemValidationError as error:
             flash(str(error), "error")
