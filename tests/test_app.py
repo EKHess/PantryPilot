@@ -32,6 +32,14 @@ def test_unknown_page_is_not_found(client):
     assert client.get("/missing").status_code == 404
 
 
+def test_pages_include_pantry_favicon(client):
+    response = client.get("/")
+
+    assert b'rel="icon"' in response.data
+    assert b'href="/static/favicon.svg"' in response.data
+    assert client.get("/static/favicon.svg").status_code == 200
+
+
 def test_export_downloads_current_database(client):
     client.post("/items", data={"name": "Export me", "store_id": "1", "quantity": "4"})
 

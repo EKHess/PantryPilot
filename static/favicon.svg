@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>PantryPilot pantry</title>
+  <rect width="64" height="64" rx="14" fill="#134837"/>
+  <path d="M14 17h36v34H14z" fill="#f6ad3c"/>
+  <path d="M18 21h28v26H18z" fill="#fff8e8"/>
+  <path d="M18 32h28v4H18zM30 21h4v26h-4z" fill="#2d805f"/>
+  <path d="M21 25h6v7h-6zM37 24h6v8h-6zM21 39h6v8h-6zM37 38h6v9h-6z" fill="#f6ad3c"/>
+  <path d="M22 23h4v2h-4zM38 22h4v2h-4zM22 37h4v2h-4zM38 36h4v2h-4z" fill="#134837"/>
+  <circle cx="27.5" cy="34" r="1.5" fill="#fff8e8"/>
+  <circle cx="36.5" cy="34" r="1.5" fill="#fff8e8"/>
+</svg>
