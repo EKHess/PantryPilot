@@ -1,9 +1,21 @@
 const sidebar = document.querySelector('#sidebar');
 const toggle = document.querySelector('.menu-toggle');
+const sidebarScrim = document.querySelector('.sidebar-scrim');
 
-toggle?.addEventListener('click', () => {
-  const open = sidebar.classList.toggle('open');
+function setSidebarOpen(open) {
+  sidebar.classList.toggle('open', open);
+  document.body.classList.toggle('navigation-open', open);
   toggle.setAttribute('aria-expanded', String(open));
+  toggle.setAttribute('aria-label', open ? 'Close navigation' : 'Open navigation');
+}
+
+toggle?.addEventListener('click', () => setSidebarOpen(!sidebar.classList.contains('open')));
+sidebarScrim?.addEventListener('click', () => setSidebarOpen(false));
+sidebar?.addEventListener('click', (event) => {
+  if (event.target.closest('.nav-link')) setSidebarOpen(false);
+});
+window.addEventListener('resize', () => {
+  if (window.innerWidth > 1100 && sidebar.classList.contains('open')) setSidebarOpen(false);
 });
 
 function openModal(modal) {
@@ -213,7 +225,10 @@ document.querySelectorAll('.modal').forEach((modal) => {
 });
 
 document.addEventListener('keydown', (event) => {
-  if (event.key === 'Escape') document.querySelectorAll('.modal.open').forEach(closeModal);
+  if (event.key === 'Escape') {
+    document.querySelectorAll('.modal.open').forEach(closeModal);
+    if (sidebar?.classList.contains('open')) setSidebarOpen(false);
+  }
 });
 
 document.querySelectorAll('input[type="color"]').forEach((colorInput) => {
