@@ -5,9 +5,9 @@
   <td><span class="category-chip" style="--category-color: {{ item.category_color }}">{{ item.category or 'misc' }}</span></td>
   <td>
     <div class="quantity-control" aria-label="Quantity for {{ item.name }}">
-      <form method="post" action="{{ url_for('change_item_quantity', item_id=item.id) }}"><input type="hidden" name="return_to" value="{{ return_to }}"><input type="hidden" name="return_query" value="{{ request.query_string.decode() }}"><input type="hidden" name="change" value="-1"><button type="submit" aria-label="Decrease {{ item.name }} quantity" {{ 'disabled' if item.quantity == 0 }}>−</button></form>
-      <strong>{{ item.quantity }}</strong>
-      <form method="post" action="{{ url_for('change_item_quantity', item_id=item.id) }}"><input type="hidden" name="return_to" value="{{ return_to }}"><input type="hidden" name="return_query" value="{{ request.query_string.decode() }}"><input type="hidden" name="change" value="1"><button type="submit" aria-label="Increase {{ item.name }} quantity">＋</button></form>
+      <form method="post" action="{{ url_for('change_item_quantity', item_id=item.id) }}" data-quantity-form><input type="hidden" name="return_to" value="{{ return_to }}"><input type="hidden" name="return_query" value="{{ request.query_string.decode() }}"><input type="hidden" name="change" value="-1"><button type="submit" aria-label="Decrease {{ item.name }} quantity" {{ 'disabled' if item.quantity == 0 }}>−</button></form>
+      <strong aria-live="polite">{{ item.quantity }}</strong>
+      <form method="post" action="{{ url_for('change_item_quantity', item_id=item.id) }}" data-quantity-form><input type="hidden" name="return_to" value="{{ return_to }}"><input type="hidden" name="return_query" value="{{ request.query_string.decode() }}"><input type="hidden" name="change" value="1"><button type="submit" aria-label="Increase {{ item.name }} quantity">＋</button></form>
     </div>
   </td>
   {% if show_added %}<td>{{ item.added }}</td>{% endif %}
