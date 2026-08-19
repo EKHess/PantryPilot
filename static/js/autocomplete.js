@@ -1,5 +1,5 @@
 (function exposeAutocomplete() {
-  function initAutocomplete({ input, endpoint, onSelect, debounce = 250 }) {
+  function initAutocomplete({ input, endpoint, onSelect, onClear = onSelect, debounce = 250 }) {
     const root = input.closest('[data-inventory-autocomplete]');
     const list = root?.querySelector('[role="listbox"]');
     const clearButton = root?.querySelector('.search-clear');
@@ -129,7 +129,7 @@
       requestNumber += 1;
       if (query.length < 2) {
         close();
-        if (!query) onSelect(null);
+        if (!query) onClear();
         return;
       }
       const sequence = requestNumber;
@@ -161,7 +161,7 @@
       clearTimeout(timer);
       close();
       input.focus();
-      onSelect(null);
+      onClear();
     });
     document.addEventListener('pointerdown', (event) => {
       if (!root.contains(event.target)) {
