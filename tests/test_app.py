@@ -368,6 +368,29 @@ def test_item_edit_quantity_controls_and_delete(client):
     assert b'data-name="Plantains"' not in deleted.data
 
 
+def test_quantity_json_response_supports_updates_without_navigation(client):
+    page = client.get("/inventory")
+    assert b"data-quantity-form" in page.data
+    assert b'aria-live="polite"' in page.data
+
+    response = client.post(
+        "/items/1/quantity",
+        data={"change": "1"},
+        headers={"Accept": "application/json"},
+    )
+
+    assert response.status_code == 200
+    assert response.json == {
+        "ok": True,
+        "quantity": 2,
+        "status": {"label": "In Stock", "className": "stock"},
+    }
+
+    javascript = client.get("/static/js/app.js").data
+    assert b"event.preventDefault()" in javascript
+    assert b"[data-quantity-form]" in javascript
+
+
 def test_items_default_active_and_can_be_made_inactive(client):
     created = client.post(
         "/items",

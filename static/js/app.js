@@ -42,6 +42,51 @@ async function refreshInventory() {
 
 inventoryUpdates?.addEventListener('message', refreshInventory);
 
+document.addEventListener('submit', async (event) => {
+  const form = event.target.closest('[data-quantity-form]');
+  if (!form) return;
+  event.preventDefault();
+
+  const row = form.closest('tr');
+  const controls = row.querySelector('.quantity-control');
+  const buttons = controls.querySelectorAll('button');
+  buttons.forEach((button) => { button.disabled = true; });
+
+  try {
+    const response = await fetch(form.action, {
+      method: 'POST',
+      body: new FormData(form),
+      headers: { Accept: 'application/json' },
+    });
+    if (!response.ok) throw new Error('Quantity update failed');
+
+    const result = await response.json();
+    controls.querySelector('strong').textContent = result.quantity;
+    const badge = row.querySelector('.badge');
+    badge.textContent = result.status.label;
+    badge.className = `badge ${result.status.className}`;
+    row.querySelector('[data-edit-item]').dataset.quantity = result.quantity;
+    controls.querySelector('input[name="change"][value="-1"]')
+      .closest('form').querySelector('button').disabled = result.quantity === 0;
+    inventoryUpdates?.postMessage('quantity-updated');
+    try {
+      localStorage.setItem('pantrypilot-inventory-updated', String(Date.now()));
+    } catch (_storageError) {
+      // BroadcastChannel still keeps supported tabs synchronized.
+    }
+  } catch (_error) {
+    buttons.forEach((button) => { button.disabled = false; });
+    window.alert('The quantity could not be updated. Please try again.');
+    return;
+  }
+
+  buttons.forEach((button) => { button.disabled = false; });
+  if (Number(controls.querySelector('strong').textContent) === 0) {
+    controls.querySelector('input[name="change"][value="-1"]')
+      .closest('form').querySelector('button').disabled = true;
+  }
+});
+
 addItemForm?.addEventListener('submit', async (event) => {
   event.preventDefault();
   const submitButton = addItemForm.querySelector('[type="submit"]');

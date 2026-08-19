@@ -153,6 +153,17 @@ def create_app(test_config=None) -> Flask:
         item = grocery.change_item_quantity(item_id, change)
         if item is None:
             abort(404)
+        if request.accept_mimetypes.best == "application/json":
+            return jsonify(
+                {
+                    "ok": True,
+                    "quantity": item["quantity"],
+                    "status": {
+                        "label": item["status"][0],
+                        "className": item["status"][1],
+                    },
+                }
+            )
         return item_redirect()
 
     @app.post("/items/<int:item_id>/delete")
