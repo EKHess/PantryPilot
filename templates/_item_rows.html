@@ -1,18 +1,18 @@
 {% for item in items %}
 <tr class="{{ 'inactive-item' if not item.is_active }}">
-  <td><strong>{{ item.name }}</strong></td>
-  <td>{{ item.store }}</td>
-  <td><span class="category-chip" style="--category-color: {{ item.category_color }}">{{ item.category or 'misc' }}</span></td>
-  <td>
+  <td data-label="Item"><strong>{{ item.name }}</strong></td>
+  <td data-label="Store">{{ item.store }}</td>
+  <td data-label="Category"><span class="category-chip" style="--category-color: {{ item.category_color }}">{{ item.category or 'misc' }}</span></td>
+  <td data-label="Quantity">
     <div class="quantity-control" aria-label="Quantity for {{ item.name }}">
       <form method="post" action="{{ url_for('change_item_quantity', item_id=item.id) }}" data-quantity-form><input type="hidden" name="return_to" value="{{ return_to }}"><input type="hidden" name="return_query" value="{{ request.query_string.decode() }}"><input type="hidden" name="change" value="-1"><button type="submit" aria-label="Decrease {{ item.name }} quantity" {{ 'disabled' if item.quantity == 0 }}>−</button></form>
       <strong aria-live="polite">{{ item.quantity }}</strong>
       <form method="post" action="{{ url_for('change_item_quantity', item_id=item.id) }}" data-quantity-form><input type="hidden" name="return_to" value="{{ return_to }}"><input type="hidden" name="return_query" value="{{ request.query_string.decode() }}"><input type="hidden" name="change" value="1"><button type="submit" aria-label="Increase {{ item.name }} quantity">＋</button></form>
     </div>
   </td>
-  {% if show_added %}<td>{{ item.added }}</td>{% endif %}
-  <td><span class="badge {{ item.status[1] }}">{{ item.status[0] }}</span></td>
-  <td><div class="row-actions"><button class="icon-button" type="button" aria-label="Edit {{ item.name }}" data-edit-item data-name="{{ item.name }}" data-store-id="{{ item.store_id }}" data-category-id="{{ item.category_id }}" data-quantity="{{ item.quantity }}" data-item-minimum="{{ item.item_minimum if item.item_minimum is not none else '' }}" data-is-active="{{ '1' if item.is_active else '0' }}" data-action="{{ url_for('edit_item', item_id=item.id) }}" data-return-to="{{ return_to }}" data-return-query="{{ request.query_string.decode() }}">✎</button><button class="icon-button danger" type="button" aria-label="Delete {{ item.name }}" data-delete-item data-name="{{ item.name }}" data-action="{{ url_for('delete_item', item_id=item.id) }}" data-return-to="{{ return_to }}" data-return-query="{{ request.query_string.decode() }}">⌫</button></div></td>
+  {% if show_added %}<td data-label="Added">{{ item.added }}</td>{% endif %}
+  <td data-label="Status"><span class="badge {{ item.status[1] }}">{{ item.status[0] }}</span></td>
+  <td data-label="Actions"><div class="row-actions"><button class="icon-button" type="button" aria-label="Edit {{ item.name }}" data-edit-item data-name="{{ item.name }}" data-store-id="{{ item.store_id }}" data-category-id="{{ item.category_id }}" data-quantity="{{ item.quantity }}" data-item-minimum="{{ item.item_minimum if item.item_minimum is not none else '' }}" data-is-active="{{ '1' if item.is_active else '0' }}" data-action="{{ url_for('edit_item', item_id=item.id) }}" data-return-to="{{ return_to }}" data-return-query="{{ request.query_string.decode() }}">✎</button><button class="icon-button danger" type="button" aria-label="Delete {{ item.name }}" data-delete-item data-name="{{ item.name }}" data-action="{{ url_for('delete_item', item_id=item.id) }}" data-return-to="{{ return_to }}" data-return-query="{{ request.query_string.decode() }}">⌫</button></div></td>
 </tr>
 {% else %}
 <tr><td class="empty-table" colspan="{{ 7 if show_added else 6 }}">No inventory items match your search and store filter.</td></tr>

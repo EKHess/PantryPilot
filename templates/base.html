@@ -8,6 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto+Slab:wght@600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/responsive.css') }}">
 </head>
 <body>
   <aside class="sidebar" id="sidebar">
@@ -17,7 +18,8 @@
       {% for key, href, icon, label in links %}<a class="nav-link {{ 'active' if active == key }}" href="{{ href }}"><b>{{ icon }}</b>{{ label }}</a>{% endfor %}
     </nav>
   </aside>
-  <button class="menu-toggle" type="button" aria-label="Toggle menu" aria-expanded="false">☰</button>
+  <div class="sidebar-scrim" data-sidebar-close aria-hidden="true"></div>
+  <button class="menu-toggle" type="button" aria-label="Open navigation" aria-controls="sidebar" aria-expanded="false"><span aria-hidden="true">☰</span></button>
   <main class="main">
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% for category, message in messages %}<div class="flash {{ category }}" role="status">{{ message }}</div>{% endfor %}

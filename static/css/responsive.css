@@ -1,0 +1,38 @@
+/* Responsive refinements layered over the desktop theme. */
+html{overflow-x:hidden}body{min-width:0}.main{width:auto}.sidebar-scrim{display:none}
+.button,.icon-button,.quantity-control button,.menu-toggle{-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+
+/* Tablets, including smaller devices in landscape orientation. */
+@media (max-width:1100px){
+  .sidebar{z-index:50;box-shadow:8px 0 28px #071b1552;transform:translateX(-105%);transition:transform .22s ease}.sidebar.open{transform:translateX(0)}
+  .sidebar-scrim{position:fixed;z-index:49;inset:0;display:block;background:#071b1573;opacity:0;visibility:hidden;transition:opacity .22s,visibility .22s}.navigation-open .sidebar-scrim{opacity:1;visibility:visible}.navigation-open{overflow:hidden}
+  .menu-toggle{display:grid;place-items:center;position:fixed;z-index:51;right:clamp(14px,2.5vw,26px);top:clamp(14px,2.5vw,24px);width:46px;height:46px;border:0;border-radius:11px;background:var(--sidebar);color:#fff;font-size:22px;box-shadow:0 3px 12px #071b1538}
+  .main{margin-left:0;max-width:none;padding:clamp(24px,3.5vw,36px)}.page-header{padding-right:62px}
+  .dashboard-grid{grid-template-columns:minmax(0,1.65fr) minmax(245px,.8fr)}.lists-grid{grid-template-columns:minmax(0,1.5fr) minmax(240px,.7fr)}.store-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+
+/* Portrait tablets and large phones use one comfortable content column. */
+@media (max-width:760px){
+  .main{padding:22px 16px 40px}.page-header{gap:16px;margin-bottom:18px}.page-header p{line-height:1.45}
+  .dashboard-grid,.lists-grid{grid-template-columns:1fr}.stat-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.store-grid{grid-template-columns:1fr}.store-card{padding:18px}
+  .settings-card{grid-template-columns:1fr;gap:20px;padding:20px}.transfer-card{max-width:none}
+  .alphabet{flex-wrap:nowrap!important;justify-content:flex-start!important;overflow-x:auto;padding:2px 1px 9px;margin-bottom:22px!important;scrollbar-width:thin}.alphabet a{flex:0 0 34px}.alphabet a.active{flex-basis:42px}
+  .modal{align-items:end;padding:0}.modal-card{width:100%;max-height:92dvh;overflow-y:auto;border-radius:18px 18px 0 0;padding:24px 20px calc(22px + env(safe-area-inset-bottom))}
+}
+
+/* Phones: replace wide inventory tables with readable labelled cards. */
+@media (max-width:560px){
+  .main{padding:18px 12px 34px}.page-header{display:flex;flex-direction:column;padding-right:58px}.page-header h1{font-size:26px}.page-header>.button,.page-header .actions{margin-top:0}.page-header>.button{align-self:flex-start}.page-header .actions{width:100%;display:grid;grid-template-columns:1fr}.page-header .actions .button{width:100%;justify-content:center;text-align:center}
+  .stat-grid{gap:9px}.stat{padding:14px}.stat small{min-height:30px;margin-bottom:7px;font-size:11px}.stat strong{font-size:27px}
+  .panel,.stores-panel,.list-panel,.options,.inventory-panel{padding:15px}.inventory-search,.inventory-filters .inventory-search,.dashboard-lookup .inventory-search{min-width:0;width:100%;max-width:100%;flex-basis:100%}.filters{margin-bottom:18px}.card{border-radius:12px}
+  .table-wrap{overflow:visible}.table-wrap table,.panel .table-wrap table{min-width:0}.table-wrap thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}.table-wrap tbody{display:grid;gap:12px}.table-wrap tr{display:grid;grid-template-columns:1fr 1fr;padding:14px;border:1px solid var(--line);border-radius:11px;background:#fff}
+  .table-wrap td{display:flex;min-width:0;align-items:center;justify-content:space-between;gap:10px;padding:9px 4px;border-top:1px solid #e5e9e7;text-align:right;overflow-wrap:anywhere}.table-wrap td::before{content:attr(data-label);flex:0 0 auto;color:var(--muted);font-size:11px;font-weight:700;text-transform:uppercase;text-align:left}
+  .table-wrap td:first-child{grid-column:1/-1;padding-top:2px;border:0;font-size:16px}.table-wrap td:first-child::before{display:none}.table-wrap td[data-label="Store"],.table-wrap td[data-label="Category"]{grid-column:span 1}.table-wrap td[data-label="Quantity"],.table-wrap td[data-label="Added"],.table-wrap td[data-label="Status"],.table-wrap td[data-label="Actions"]{grid-column:1/-1}
+  .table-wrap .row-actions{margin-left:auto}.table-wrap .empty-table{grid-column:1/-1;display:block;text-align:center}.table-wrap .empty-table::before{display:none}
+  .quantity-control button,.icon-button{min-width:40px;min-height:40px}.quantity-control button{width:40px;height:40px}.icon-button{width:40px;height:40px}
+  .store-card{display:grid;grid-template-columns:auto 1fr auto;gap:12px}.store-color{width:42px;height:42px;flex-basis:42px}.store-actions{margin:0}.store-list header{gap:10px;align-items:flex-start;flex-direction:column;padding:12px}.store-list header .button{width:100%;justify-content:center;text-align:center}
+  .grocery-list-item{gap:12px}.setting-control{flex-direction:column}.setting-control .button{width:100%}.modal-actions{display:grid;grid-template-columns:1fr 1fr}.modal-actions .button{padding-inline:8px}.drop-zone{min-height:230px}.warning-box{overflow-wrap:anywhere}
+}
+
+@media (max-width:360px){.stat-grid{grid-template-columns:1fr}.store-card{grid-template-columns:auto 1fr}.store-actions{grid-column:1/-1;justify-content:flex-end}.modal-actions{grid-template-columns:1fr}}
+@media (prefers-reduced-motion:reduce){.sidebar,.sidebar-scrim{transition:none!important}}
