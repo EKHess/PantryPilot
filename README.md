@@ -5,7 +5,10 @@ A locally run Flask app to manage grocery inventory in your house. Uses SQLite3 
 ## Upcoming Feature Ideas
 
 - A "notes" field for item entries
-- Filtered search by category and store
+- Filtered search by:
+    - category
+    - store
+    - inactive or active state
 
 ## Installation
 There is no real installation for this project aside from simply cloning the repo to a location on your computer using `git clone`, or downloading the source code ZIP file to a folder of your choosing.
