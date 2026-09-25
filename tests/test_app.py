@@ -326,6 +326,34 @@ def test_scoped_inventory_search_and_item_updates_remain_in_scope(client):
     assert response.headers["Location"] == "/stores/1/items?search=milk"
 
 
+def test_scoped_inventory_suggestions_only_include_items_in_the_selected_scope(client):
+    client.post("/categories", data={"name": "Cleaning", "color": "#123456"})
+    client.post(
+        "/items",
+        data={"name": "Sponge", "store_id": "1", "quantity": "1", "category_id": "2"},
+    )
+    client.post(
+        "/items",
+        data={"name": "Sponges", "store_id": "2", "quantity": "1", "category_id": "1"},
+    )
+
+    store_suggestions = client.get(
+        "/api/inventory/suggestions?q=sp&store_id=1"
+    ).get_json()["suggestions"]
+    category_suggestions = client.get(
+        "/api/inventory/suggestions?q=sp&category_id=2"
+    ).get_json()["suggestions"]
+
+    assert [item["name"] for item in store_suggestions] == ["Sponge"]
+    assert [item["name"] for item in category_suggestions] == ["Sponge"]
+    assert b'data-suggestions-url="/api/inventory/suggestions?store_id=1"' in client.get(
+        "/stores/1/items?scope_id=1"
+    ).data
+    assert b'data-suggestions-url="/api/inventory/suggestions?category_id=2"' in client.get(
+        "/categories/2/items?scope_id=2"
+    ).data
+
+
 def test_item_rejects_unknown_category_and_misc_is_protected(client):
     invalid = client.post(
         "/items",

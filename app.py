@@ -85,7 +85,13 @@ def create_app(test_config=None) -> Flask:
     @app.get("/api/inventory/suggestions")
     def inventory_suggestions():
         return jsonify(
-            {"suggestions": grocery.inventory_suggestions(request.args.get("q", ""))}
+            {
+                "suggestions": grocery.inventory_suggestions(
+                    request.args.get("q", ""),
+                    store_id=request.args.get("store_id", type=int),
+                    category_id=request.args.get("category_id", type=int),
+                )
+            }
         )
 
     def scoped_items_page(scope: str, scope_item: dict, **filters):
@@ -109,6 +115,9 @@ def create_app(test_config=None) -> Flask:
             selected_letter=selected_letter,
             list_endpoint=f"{scope}_items",
             scope_parameter=f"{scope}_id",
+            suggestions_url=url_for(
+                "inventory_suggestions", **{f"{scope}_id": scope_item["id"]}
+            ),
             return_to=f"{scope}_items",
             item_return_to=f"{scope}_items",
             item_return_query=request.query_string.decode()
