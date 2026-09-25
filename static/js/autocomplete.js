@@ -105,7 +105,9 @@
       controller = new AbortController();
       loadingTimer = setTimeout(() => renderMessage('Searching…'), 500);
       try {
-        const response = await fetch(`${endpoint}?q=${encodeURIComponent(query)}`, {
+        const url = new URL(endpoint, window.location.origin);
+        url.searchParams.set('q', query);
+        const response = await fetch(url, {
           signal: controller.signal,
           headers: { Accept: 'application/json' },
         });

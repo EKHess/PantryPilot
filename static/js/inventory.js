@@ -43,7 +43,7 @@
     document.querySelectorAll('[data-inventory-autocomplete]').forEach((root) => {
       window.initAutocomplete({
         input: root.querySelector('input[name="search"]'),
-        endpoint: '/api/inventory/suggestions',
+        endpoint: root.dataset.suggestionsUrl || '/api/inventory/suggestions',
         onSelect: () => applySearch(root),
         onClear: () => clearSearch(root),
       });

@@ -85,16 +85,60 @@ def create_app(test_config=None) -> Flask:
     @app.get("/api/inventory/suggestions")
     def inventory_suggestions():
         return jsonify(
-            {"suggestions": grocery.inventory_suggestions(request.args.get("q", ""))}
+            {
+                "suggestions": grocery.inventory_suggestions(
+                    request.args.get("q", ""),
+                    store_id=request.args.get("store_id", type=int),
+                    category_id=request.args.get("category_id", type=int),
+                )
+            }
+        )
+
+    def scoped_items_page(scope: str, scope_item: dict, **filters):
+        """Render an inventory-style list constrained to one store or category."""
+        search = request.args.get("search", "").strip()
+        requested_letter = request.args.get("letter", "All").upper()
+        selected_letter = (
+            requested_letter
+            if len(requested_letter) == 1 and requested_letter in "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+            else "All"
+        )
+        return render_template(
+            "scoped_items.html",
+            active=f"{scope}s",
+            scope=scope,
+            scope_item=scope_item,
+            scope_id=scope_item["id"],
+            items=grocery.inventory_items(search, letter=selected_letter, **filters),
+            item_names=grocery.item_names(),
+            search=search,
+            selected_letter=selected_letter,
+            list_endpoint=f"{scope}_items",
+            scope_parameter=f"{scope}_id",
+            suggestions_url=url_for(
+                "inventory_suggestions", **{f"{scope}_id": scope_item["id"]}
+            ),
+            return_to=f"{scope}_items",
+            item_return_to=f"{scope}_items",
+            item_return_query=request.query_string.decode()
+            or f"scope_id={scope_item['id']}",
         )
 
     def item_redirect():
         endpoint = request.form.get("return_to", "dashboard")
-        endpoint = endpoint if endpoint in {"dashboard", "inventory"} else "dashboard"
         filters = {
             key: value
             for key, value in parse_qsl(request.form.get("return_query", ""))
         }
+        if endpoint in {"category_items", "store_items"}:
+            scope_id = filters.pop("scope_id", None)
+            try:
+                scope_id = int(scope_id)
+            except (TypeError, ValueError):
+                return redirect(url_for("dashboard"))
+            parameter = "category_id" if endpoint == "category_items" else "store_id"
+            return redirect(url_for(endpoint, **{parameter: scope_id}, **filters))
+        endpoint = endpoint if endpoint in {"dashboard", "inventory"} else "dashboard"
         return redirect(url_for(endpoint, **filters))
 
     @app.post("/items")
@@ -249,6 +293,13 @@ def create_app(test_config=None) -> Flask:
             return redirect(url_for("stores"))
         return render_template("stores.html", active="stores", stores=grocery.stores())
 
+    @app.get("/stores/<int:store_id>/items")
+    def store_items(store_id):
+        store = grocery.get_store(store_id)
+        if store is None:
+            abort(404)
+        return scoped_items_page("store", store, store_id=store_id)
+
     @app.post("/stores/<int:store_id>/edit")
     def edit_store(store_id):
         try:
@@ -284,6 +335,13 @@ def create_app(test_config=None) -> Flask:
                 flash(f"{category['name']} was added.", "success")
             return redirect(url_for("categories"))
         return render_template("categories.html", active="categories", categories=grocery.categories())
+
+    @app.get("/categories/<int:category_id>/items")
+    def category_items(category_id):
+        category = grocery.get_category(category_id)
+        if category is None:
+            abort(404)
+        return scoped_items_page("category", category, category_id=category_id)
 
     @app.post("/categories/<int:category_id>/edit")
     def edit_category(category_id):

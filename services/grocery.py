@@ -361,7 +361,10 @@ def _item_from_row(row, default_minimum: int) -> dict:
 
 
 def inventory_items(
-    search: str = "", store_id: int | None = None, letter: str = "All"
+    search: str = "",
+    store_id: int | None = None,
+    letter: str = "All",
+    category_id: int | None = None,
 ) -> list[dict]:
     minimum = item_minimum()
     clauses = []
@@ -372,6 +375,9 @@ def inventory_items(
     if store_id is not None:
         clauses.append("i.store_id = ?")
         parameters.append(store_id)
+    if category_id is not None:
+        clauses.append("i.category_id = ?")
+        parameters.append(category_id)
     if len(letter) == 1 and letter.isascii() and letter.isalpha():
         clauses.append("i.name LIKE ? COLLATE NOCASE")
         parameters.append(f"{letter}%")
@@ -399,7 +405,12 @@ def item_names() -> list[str]:
     return [row["name"] for row in rows]
 
 
-def inventory_suggestions(query: str, limit: int = 10) -> list[dict]:
+def inventory_suggestions(
+    query: str,
+    limit: int = 10,
+    store_id: int | None = None,
+    category_id: int | None = None,
+) -> list[dict]:
     """Return active inventory matches, with prefix matches ranked first."""
     clean_query = (query or "").strip()
     if len(clean_query) < 2:
@@ -411,13 +422,23 @@ def inventory_suggestions(query: str, limit: int = 10) -> list[dict]:
     )
     prefix = f"{escaped}%"
     contains = f"%{escaped}%"
+    scope_clauses = []
+    scope_parameters = []
+    if store_id is not None:
+        scope_clauses.append("i.store_id = ?")
+        scope_parameters.append(store_id)
+    if category_id is not None:
+        scope_clauses.append("i.category_id = ?")
+        scope_parameters.append(category_id)
+    scope_where = f" AND {' AND '.join(scope_clauses)}" if scope_clauses else ""
     rows = database.get_connection().execute(
-        """SELECT i.id, i.name, COALESCE(s.name, 'Unassigned') AS store,
+        f"""SELECT i.id, i.name, COALESCE(s.name, 'Unassigned') AS store,
                   i.quantity
            FROM grocery_items AS i
            LEFT JOIN stores AS s ON s.id = i.store_id
            WHERE i.is_active = 1
              AND i.name LIKE ? ESCAPE '\\' COLLATE NOCASE
+             {scope_where}
            ORDER BY CASE
                         WHEN i.name LIKE ? ESCAPE '\\' COLLATE NOCASE THEN 0
                         ELSE 1
@@ -425,7 +446,7 @@ def inventory_suggestions(query: str, limit: int = 10) -> list[dict]:
                     i.name COLLATE NOCASE,
                     store COLLATE NOCASE
            LIMIT ?""",
-        (contains, prefix, min(max(int(limit), 1), 10)),
+        (contains, *scope_parameters, prefix, min(max(int(limit), 1), 10)),
     ).fetchall()
     return [dict(row) for row in rows]
 

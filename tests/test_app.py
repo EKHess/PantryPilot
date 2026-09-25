@@ -287,6 +287,79 @@ def test_categories_can_be_created_used_edited_and_deleted(client):
     assert b">misc</span>" in apples_row
 
 
+def test_store_and_category_tiles_open_scoped_inventory_lists(client):
+    client.post("/categories", data={"name": "Cleaning", "color": "#123456"})
+    client.post(
+        "/items",
+        data={"name": "Sponge", "store_id": "1", "quantity": "1", "category_id": "2"},
+    )
+    assert b'href="/stores/1/items?scope_id=1"' in client.get("/stores").data
+    assert b'href="/categories/2/items?scope_id=2"' in client.get("/categories").data
+    styles = client.get("/static/css/app.css").data
+    assert b".store-card-link{position:absolute;z-index:1;inset:0" in styles
+    assert b".store-card .store-actions{position:relative;z-index:2}" in styles
+
+    for path, included_item, excluded_item, back_path in [
+        ("/stores/1/items?scope_id=1", b"Milk", b"Bananas", "/stores"),
+        ("/categories/2/items?scope_id=2", b"Sponge", b"Milk", "/categories"),
+    ]:
+        page = client.get(path).data
+
+        assert b"<strong>" + included_item + b"</strong>" in page
+        assert b"<strong>" + excluded_item + b"</strong>" not in page
+        assert b'<h2 class="inventory-search-heading">Search Your Pantry</h2>' in page
+        assert f'href="{back_path}"'.encode() in page
+        assert b'<nav class="alphabet" aria-label="Filter inventory by first letter">' in page
+
+
+def test_scoped_inventory_search_and_item_updates_remain_in_scope(client):
+    page = client.get("/stores/1/items?scope_id=1&search=milk")
+    assert b"<strong>Milk</strong>" in page.data
+    assert b"<strong>Bananas</strong>" not in page.data
+
+    response = client.post(
+        "/items/5/quantity",
+        data={
+            "change": "1",
+            "return_to": "store_items",
+            "return_query": "scope_id=1&search=milk",
+        },
+    )
+
+    assert response.headers["Location"] == "/stores/1/items?search=milk"
+
+
+def test_scoped_inventory_suggestions_only_include_items_in_the_selected_scope(client):
+    client.post("/categories", data={"name": "Cleaning", "color": "#123456"})
+    client.post(
+        "/items",
+        data={"name": "Sponge", "store_id": "1", "quantity": "1", "category_id": "2"},
+    )
+    client.post(
+        "/items",
+        data={"name": "Sponges", "store_id": "2", "quantity": "1", "category_id": "1"},
+    )
+
+    store_suggestions = client.get(
+        "/api/inventory/suggestions?q=sp&store_id=1"
+    ).get_json()["suggestions"]
+    category_suggestions = client.get(
+        "/api/inventory/suggestions?q=sp&category_id=2"
+    ).get_json()["suggestions"]
+
+    assert [item["name"] for item in store_suggestions] == ["Sponge"]
+    assert [item["name"] for item in category_suggestions] == ["Sponge"]
+    assert b'data-suggestions-url="/api/inventory/suggestions?store_id=1"' in client.get(
+        "/stores/1/items?scope_id=1"
+    ).data
+    assert b'data-suggestions-url="/api/inventory/suggestions?category_id=2"' in client.get(
+        "/categories/2/items?scope_id=2"
+    ).data
+    autocomplete_javascript = client.get("/static/js/autocomplete.js").data
+    assert b"new URL(endpoint, window.location.origin)" in autocomplete_javascript
+    assert b"url.searchParams.set('q', query)" in autocomplete_javascript
+
+
 def test_item_rejects_unknown_category_and_misc_is_protected(client):
     invalid = client.post(
         "/items",
