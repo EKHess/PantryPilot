@@ -295,6 +295,9 @@ def test_store_and_category_tiles_open_scoped_inventory_lists(client):
     )
     assert b'href="/stores/1/items?scope_id=1"' in client.get("/stores").data
     assert b'href="/categories/2/items?scope_id=2"' in client.get("/categories").data
+    styles = client.get("/static/css/app.css").data
+    assert b".store-card-link{position:absolute;z-index:1;inset:0" in styles
+    assert b".store-card .store-actions{position:relative;z-index:2}" in styles
 
     for path, included_item, excluded_item, back_path in [
         ("/stores/1/items?scope_id=1", b"Milk", b"Bananas", "/stores"),
