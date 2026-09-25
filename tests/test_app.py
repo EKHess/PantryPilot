@@ -352,6 +352,9 @@ def test_scoped_inventory_suggestions_only_include_items_in_the_selected_scope(c
     assert b'data-suggestions-url="/api/inventory/suggestions?category_id=2"' in client.get(
         "/categories/2/items?scope_id=2"
     ).data
+    autocomplete_javascript = client.get("/static/js/autocomplete.js").data
+    assert b"new URL(endpoint, window.location.origin)" in autocomplete_javascript
+    assert b"url.searchParams.set('q', query)" in autocomplete_javascript
 
 
 def test_item_rejects_unknown_category_and_misc_is_protected(client):
