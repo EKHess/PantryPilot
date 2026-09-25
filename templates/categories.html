@@ -4,6 +4,7 @@
 <section class="store-grid" aria-label="Categories">
   {% for category in categories %}
   <article class="card store-card">
+    <a class="store-card-link" href="{{ url_for('category_items', category_id=category.id, scope_id=category.id) }}" aria-label="View pantry items in {{ category.name }}"></a>
     <span class="store-color" style="--store-color: {{ category.color }}" aria-hidden="true"></span>
     <div class="store-details"><h2>{{ category.name }}</h2><p>{% if category.name|lower == 'misc' %}Default for uncategorized pantry items{% else %}Available for pantry items{% endif %}</p></div>
     <div class="store-actions">

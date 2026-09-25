@@ -40,3 +40,6 @@
 .inventory-panel .alphabet{justify-content:center}
 @media(max-width:850px){.inventory-search,.inventory-filters .inventory-search{max-width:none;width:100%;flex-basis:100%}}
 @media(prefers-color-scheme:dark){:root{--pp-primary-soft:#24483b;--pp-surface:#182a24;--pp-text:#edf5f1;--pp-muted:#a9b8b2;--pp-border:#3c5049}.autocomplete-list{box-shadow:0 14px 30px #0008}.filters .inventory-search input{background:#fff;color:var(--ink)}}
+
+/* Make category and store cards navigable without interfering with their actions. */
+.store-card{position:relative}.store-card-link{position:absolute;inset:0;border-radius:inherit}.store-card-link:focus-visible{outline:3px solid var(--green);outline-offset:3px}.store-card>*:not(.store-card-link){position:relative;z-index:1}

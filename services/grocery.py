@@ -361,7 +361,10 @@ def _item_from_row(row, default_minimum: int) -> dict:
 
 
 def inventory_items(
-    search: str = "", store_id: int | None = None, letter: str = "All"
+    search: str = "",
+    store_id: int | None = None,
+    letter: str = "All",
+    category_id: int | None = None,
 ) -> list[dict]:
     minimum = item_minimum()
     clauses = []
@@ -372,6 +375,9 @@ def inventory_items(
     if store_id is not None:
         clauses.append("i.store_id = ?")
         parameters.append(store_id)
+    if category_id is not None:
+        clauses.append("i.category_id = ?")
+        parameters.append(category_id)
     if len(letter) == 1 and letter.isascii() and letter.isalpha():
         clauses.append("i.name LIKE ? COLLATE NOCASE")
         parameters.append(f"{letter}%")

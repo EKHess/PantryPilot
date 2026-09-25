@@ -4,6 +4,7 @@
 <section class="store-grid" aria-label="Stores">
   {% for store in stores %}
   <article class="card store-card">
+    <a class="store-card-link" href="{{ url_for('store_items', store_id=store.id, scope_id=store.id) }}" aria-label="View pantry items from {{ store.name }}"></a>
     <span class="store-color" style="--store-color: {{ store.color }}" aria-hidden="true"></span>
     <div class="store-details"><h2>{{ store.name }}</h2><p>Available for pantry items and grocery lists</p></div>
     <div class="store-actions">
